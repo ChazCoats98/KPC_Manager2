@@ -154,9 +154,13 @@ class partForm(QWidget):
         addFeatureButton.clicked.connect(self.addFeature)
         layout.addWidget(addFeatureButton, 5, 0, 1, 2)
         
+        addPartButton = QPushButton('Add Feature')
+        addPartButton.clicked.connect(self.submitPart)
+        layout.addWidget(addPartButton, 6, 0, 1, 2)
+        
         self.featureTable = QTableWidget()
-        self.featureTable.setColumnCount(6)
-        self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Tolerance", "Last Upload Date", "Engine"])
+        self.featureTable.setColumnCount(5)
+        self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Tolerance", "Engine"])
         self.featureTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.featureTable.columnCount()):
             self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
@@ -166,8 +170,34 @@ class partForm(QWidget):
         
         self.setLayout(layout)
     def addFeature(self):
-            self.featureForm = FeatureForm()
+            self.featureForm = FeatureForm(self)
             self.featureForm.show()
+            
+    def addFeatureToTable(self, feature_data):
+        row_position = self.featureTable.rowCount()
+        self.featureTable.insertRow(row_position)
+        for i, key in enumerate(['feature', 'designation', 'kpcNum', 'tol', 'engine']):
+            self.featureTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
+            
+    def submitPart(self):
+        part_data = {
+            "partNumber": self.partInput.text(),
+            "rev": self.revInput.text(),
+            "uploadDate": self.udInput.text(),
+            "notes": self.notesInput.text(),
+            "features": []
+        }
+        for row in range(self.featureTable.rowCount()):
+            feature = {
+                "feature": self.featureTable.item(row, 0).text(),
+                "designation": self.featureTable.item(row, 1).text(),
+                "kpcNum": self.featureTable.item(row, 2).text(),
+                "tol": self.featureTable.item(row, 3).text(),
+                "engine": self.featureTable.item(row, 4).text(),
+            }
+            part_data["features"].append(feature)
+            
+        database.submit_new_part(part_data)
     
         
 class dashboard(QMainWindow):
@@ -297,53 +327,68 @@ class PartTreeView(QTreeView):
         super().setModel(model)
         
 class FeatureForm(QWidget):
-    def __init__(self):
+    def __init__(self, parent=None):
         super().__init__()
+        self.parent = parent
         self.setWindowTitle("Add Feature")
         self.resize(600, 100)
         
         layout = QGridLayout()
         
         # Part number form 
-        partLabel = QLabel('Feature Number:')
-        self.partInput = QLineEdit()
-        self.partInput.setPlaceholderText('Enter Feature Number')
-        layout.addWidget(partLabel, 0, 0)
-        layout.addWidget(self.partInput, 1, 0)
+        featureLabel = QLabel('Feature Number:')
+        self.featureInput = QLineEdit()
+        self.featureInput.setPlaceholderText('Enter Feature Number')
+        layout.addWidget(featureLabel, 0, 0)
+        layout.addWidget(self.featureInput, 1, 0)
         
         # Part revision form
-        revLabel = QLabel('KPC Designation:')
-        self.revInput = QLineEdit()
-        self.revInput.setPlaceholderText('Enter KPC Designation')
-        layout.addWidget(revLabel, 0, 1)
-        layout.addWidget(self.revInput, 1, 1)
+        kpcLabel = QLabel('KPC Designation:')
+        self.kpcInput = QLineEdit()
+        self.kpcInput.setPlaceholderText('Enter KPC Designation')
+        layout.addWidget(kpcLabel, 0, 1)
+        layout.addWidget(self.kpcInput, 1, 1)
         
         # upload date form
-        udLabel = QLabel('KPC Number:')
-        self.udInput = QLineEdit()
-        self.udInput.setPlaceholderText('Enter KPC Number from Net-Inspect')
-        layout.addWidget(udLabel, 0, 2)
-        layout.addWidget(self.udInput, 1, 2)
+        kpcNumLabel = QLabel('KPC Number:')
+        self.kpcNumInput = QLineEdit()
+        self.kpcNumInput.setPlaceholderText('Enter KPC Number from Net-Inspect')
+        layout.addWidget(kpcNumLabel, 0, 2)
+        layout.addWidget(self.kpcNumInput, 1, 2)
         
         # Notes form
-        notesLabel = QLabel('Requirement:')
-        self.notesInput = QLineEdit()
-        self.notesInput.setPlaceholderText('Enter Blueprint Requirement')
-        layout.addWidget(notesLabel, 0, 3)
-        layout.addWidget(self.notesInput, 1, 3)
+        requirementLabel = QLabel('Requirement:')
+        self.requirementInput = QLineEdit()
+        self.requirementInput.setPlaceholderText('Enter Blueprint Requirement')
+        layout.addWidget(requirementLabel, 0, 3)
+        layout.addWidget(self.requirementInput, 1, 3)
         
-        notesLabel = QLabel('Engine:')
-        self.notesInput = QLineEdit()
-        self.notesInput.setPlaceholderText('Enter Part Engine Program')
-        layout.addWidget(notesLabel, 0, 4)
-        layout.addWidget(self.notesInput, 1, 4)
+        engineLabel = QLabel('Engine:')
+        self.engineInput = QLineEdit()
+        self.engineInput.setPlaceholderText('Enter Part Engine Program')
+        layout.addWidget(engineLabel, 0, 4)
+        layout.addWidget(self.engineInput, 1, 4)
         
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
-        # addPartButton.clicked.connect(self.submitPart)
+        addFeatureButton.clicked.connect(self.submitFeature)
         layout.addWidget(addFeatureButton, 5, 0, 1, 2)
         
         self.setLayout(layout)
+        
+    def submitFeature(self):
+        
+        feature_data = {
+            "feature": self.featureInput.text(),
+            "designation": self.kpcInput.text(),
+            "kpcNum": self.kpcNumInput.text(),
+            "tol": self.requirementInput.text(),
+            "engine": self.engineInput.text(),
+        }
+        if self.parent:
+            self.parent.addFeatureToTable(feature_data)
+            
+        self.close()
         
 def renderDashboard():
     global d

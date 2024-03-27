@@ -9,23 +9,16 @@ parts = kpcdb['parts']
 
 def get_all_data():
     data = parts.find()
-    return list(data)
 
-def submit_new_part(part_form):
-    partNumber = part_form.partInput.text()
-    rev = part_form.revInput.text()
-    uploadDateStr = part_form.udInput.text()
-    notes = part_form.notesInput.text()
-    features = part_form.featuresInput.text()
-    
-    try: 
-        uploadDate = datetime.strptime(uploadDateStr, '%m/%d/%Y')
-    except ValueError:
-        QMessageBox.warning(part_form, "Error", "Invalid upload date format. Use MM/DD/YYYY")
-        return
-    
-    dueDate = uploadDate + timedelta(days=90)
-    
-    dueDateStr = dueDate.strftime('%m/%d/%y')
+def submit_new_part(part_data):
+    upload_date_str = part_data['uploadDate']
     
     
+    uploadDate = datetime.strptime(upload_date_str, '%m/%d/%Y')
+    
+    due_date = uploadDate + timedelta(days=90)
+    
+    due_date_str = due_date.strftime('%m/%d/%y')
+    part_data['dueDate'] = due_date_str
+    
+    print(part_data)
