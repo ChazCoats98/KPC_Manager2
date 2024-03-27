@@ -113,36 +113,11 @@ class registerWindow(QWidget):
             
         register(email, pwd, confPwd)
         
-class dashboard(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("KPC Manager")
-        self.resize(1200, 800)
-        
-        layout = QVBoxLayout()
-        widget = QWidget(self)
-        
-        
-        commitPart = QPushButton('Add Part')
-        deletePart = QPushButton('Delete Part')
-        
-        self.treeWidget = QTreeWidget()
-        
-        self.part_data = database.getAllData()
-        print(list(self.part_data))
-        
-        self.model = PartFeaturesModel(self.part_data)
-        
-        self.tree_view = PartTreeView(self)
-        self.tree_view.setModel(self.model)
-        self.tree_view.resize(1200,800)
-        
-    
 class partForm(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Add Part")
-        self.resize(400, 200)
+        self.resize(400, 300)
         
         layout = QGridLayout()
         
@@ -151,35 +126,84 @@ class partForm(QWidget):
         self.partInput = QLineEdit()
         self.partInput.setPlaceholderText('Enter part number')
         layout.addWidget(partLabel, 0, 0)
-        layout.addWidget(self.partInput, 0, 1)
+        layout.addWidget(self.partInput, 1, 0)
         
         # Part revision form
         revLabel = QLabel('Revision Letter:')
         self.revInput = QLineEdit()
         self.revInput.setPlaceholderText('Enter revision letter')
-        layout.addWidget(revLabel, 1, 0)
+        layout.addWidget(revLabel, 0, 1)
         layout.addWidget(self.revInput, 1, 1)
         
         # upload date form
         udLabel = QLabel('Last Net-Inspect Upload Date:')
         self.udInput = QLineEdit()
         self.udInput.setPlaceholderText('Enter upload date')
-        layout.addWidget(udLabel, 2, 0)
-        layout.addWidget(self.udInput, 2, 1)
+        layout.addWidget(udLabel, 0, 2)
+        layout.addWidget(self.udInput, 1, 2)
         
         # Notes form
         notesLabel = QLabel('Notes:')
         self.notesInput = QLineEdit()
         self.notesInput.setPlaceholderText('Enter notes')
-        layout.addWidget(notesLabel, 3, 0)
-        layout.addWidget(self.notesInput, 3, 1)
+        layout.addWidget(notesLabel, 0, 3)
+        layout.addWidget(self.notesInput, 1, 3)
         
         # Submit button Button
         addPartButton = QPushButton('Add Part')
-        addPartButton.clicked.connect(self.submitPart)
+        # addPartButton.clicked.connect(self.submitPart)
         layout.addWidget(addPartButton, 4, 0, 1, 2)
         
+        self.featureTable = QTableWidget()
+        self.featureTable.setColumnCount(5)
+        
+        layout.addWidget(featuresTable)
+        
+        
         self.setLayout(layout)
+    
+def featuresTable(self):
+    self.tableWidget = QTableWidget()
+        
+    self.tableWidget.setColumnCount(5)
+        
+    self.tableWidget.setHorizontalHeaderItem(0, "Feature Number")
+    self.tableWidget.setHorizontalHeaderItem(1, "Designation")
+    self.tableWidget.setHorizontalHeaderItem(2, "KPC Number")
+    self.tableWidget.setHorizontalHeaderItem(3, "Tolerance")
+    self.tableWidget.setHorizontalHeaderItem(4, "Engine")
+        
+    
+        
+class dashboard(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("KPC Manager")
+        self.resize(1200, 800)
+        
+        self.mainWidget = QWidget(self)
+        self.mainLayout = QVBoxLayout()
+        
+        self.tree_view = PartTreeView(self)
+        self.part_data = database.get_all_data()
+        self.model = PartFeaturesModel(self.part_data)
+        self.tree_view.setModel(self.model)
+        self.tree_view.resize(1200,800)
+        self.mainLayout.addWidget(self.tree_view)
+        
+        self.addPart = QPushButton('Add Part')
+        self.addPart.clicked.connect(self.openPartForm)
+        self.mainLayout.addWidget(self.addPart)
+        
+        deletePart = QPushButton('Delete Part')
+        
+        self.mainWidget.setLayout(self.mainLayout)
+        self.setCentralWidget(self.mainWidget)
+        
+    def openPartForm(self):
+        self.partForm = partForm()
+        self.partForm.show()
+        
     
 class PartFeaturesModel(QAbstractItemModel):
     def __init__(self, part_data, parent=None):
@@ -342,11 +366,6 @@ def passMismatch():
     dlg.setText('Passwords do not match')
     dlg.exec()
     
-def getData():
-    data = parts.find()
-
-    return data
-
 app = QApplication(sys.argv)
 window = loginWindow()
 window.show()
