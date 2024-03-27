@@ -7,7 +7,7 @@ import typing
 from pymongo import MongoClient
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView, QFileSystemModel
 from PyQt5 import QtCore
-from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractTableModel
+from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractItemModel, Qt
 from PyQt5.QtSql import QSqlDatabase, QSqlTableModel, QSqlRelation
 from PyQt5.QtWidgets import (
     QApplication,
@@ -20,11 +20,6 @@ from PyQt5.QtWidgets import (
 )
 from utils import database
 
-
-client: MongoClient = MongoClient()
-kpcdb = client['KPCManager']
-parts = kpcdb['parts']
-users = kpcdb['users']
 emailRegex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
 passwordRegex = r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$'
 
@@ -136,9 +131,9 @@ class dashboard(QMainWindow):
         self.part_data = database.getAllData()
         print(list(self.part_data))
         
-        self.model = TableModel(self.part_data)
+        self.model = PartFeaturesModel(self.part_data)
         
-        self.tree_view = QTreeView(self)
+        self.tree_view = PartTreeView(self)
         self.tree_view.setModel(self.model)
         self.tree_view.resize(1200,800)
         
@@ -186,31 +181,102 @@ class partForm(QWidget):
         
         self.setLayout(layout)
     
-    
-class TableModel(QAbstractTableModel):
-    def __init__(self, data):
-        QAbstractTableModel.__init__(self)
-        self.part_data = data
-        self.columns = list(self.part_data[0].keys())
+class PartFeaturesModel(QAbstractItemModel):
+    def __init__(self, part_data, parent=None):
+        super(PartFeaturesModel, self).__init__(parent)
         
-    def data(self, index, role):
+        self.part_data = part_data
+        
+    def index(self, row, column, parent=QModelIndex()):
+        if not self.hasIndex(row, column, parent):
+            return QModelIndex()
+        
+        if not parent.isValid():
+            part = self.part_data[row]
+            return self.createIndex(row, column, part)
+        else: 
+            part = parent.internalPointer()
+            feature = part['features'][row]
+            return self.createIndex(row, column, feature)
+        
+    def parent(self, index):
+        if not index.isValid():
+            return QModelIndex()
+        
+        child = index.internalPointer()
+        if  'features' in child:
+            
+            return QModelIndex()
+        else:
+            for part in self.part_data:
+                if child in part.get('features', []):
+                    parent_row = self.part_data.index(part)
+                    return self.createIndex(parent_row, 0, part)
+        return QModelIndex()
+    
+    def rowCount(self, parent=QModelIndex()):
+        if parent.column() > 0:
+            return 0
+        if not parent.isValid():
+            return len(self.part_data)
+        else: 
+            part = parent.internalPointer()
+            return len(part.get('features', []))
+        
+    def columnCount(self, parent=QModelIndex()):
+        return 5
+    
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        item = index.internalPointer()
         if role == Qt.DisplayRole:
-            row = index.row()
-            column = index.column()
-            item = self.part_data[row][self.columns[column]]
-            return str(item)
+            if 'feature' in item:
+                if index.column() == 0:
+                    return f"Feature #: {item['feature']}"
+                elif index.column() == 1:
+                    return f"KPC Designation: {item['designation']}"
+                elif index.column() == 2:
+                    return f"KPC Number: {item['kpcNum']}"
+                elif index.column() == 3:
+                    return f"Tolerance Value: {item['tol']}"
+                elif index.column() == 4:
+                    return f"Engine: {item['engine']}"
+            else: 
+                if index.column() == 0:
+                    return item.get('partNumber', '')
+                elif index.column() == 1:
+                    return item.get('rev', '')
+                elif index.column() == 2:
+                    return item.get('uploadDate', '')
+                elif index.column() == 3:
+                    return item.get('dueDate', '')
+                elif index.column() == 4:
+                    return item.get('notes', '')
+                    
         return None
-        
-        
-    def rowCount(self, *args, **kwargs):
-        
-        return len(self.part_data)
     
-    def columnCount(self, *args, **kwargs):
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
+            headers = ['Part Number', 'Revision', 'Last Upload Date', 'Upload Due Date', 'notes']
+            if section < len(headers):
+                return headers[section]
+        return None
+            
+            
+class PartTreeView(QTreeView):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.header().setStretchLastSection(False)
+        self.header().setSectionResizeMode(QHeaderView.Stretch)
+        self.setUniformRowHeights(True)
+            
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
         
-        return len(self.columns)
-    
-    
+    def setModel(self, model):
+        super().setModel(model)
+        
     
 def renderDashboard():
     global d
