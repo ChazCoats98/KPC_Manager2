@@ -9,16 +9,19 @@ parts = kpcdb['parts']
 
 def get_all_data():
     data = parts.find()
+    print(data)
+    return list(data)
 
-def submit_new_part(part_data):
-    upload_date_str = part_data['uploadDate']
+def submit_new_part(new_part_data):
+    try: 
+        result = parts.insert_one(new_part_data)
+        
+        if result.acknowledged:
+            print("Upload success")
+            pass
+        else: 
+            print("upload failure")
+            pass
+    except Exception as e:
+        pass
     
-    
-    uploadDate = datetime.strptime(upload_date_str, '%m/%d/%Y')
-    
-    due_date = uploadDate + timedelta(days=90)
-    
-    due_date_str = due_date.strftime('%m/%d/%y')
-    part_data['dueDate'] = due_date_str
-    
-    print(part_data)

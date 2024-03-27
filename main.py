@@ -1,7 +1,7 @@
 import sys
 import hashlib
 import re
-import datetime
+from datetime import datetime, timedelta
 import time
 import typing
 from pymongo import MongoClient
@@ -154,7 +154,7 @@ class partForm(QWidget):
         addFeatureButton.clicked.connect(self.addFeature)
         layout.addWidget(addFeatureButton, 5, 0, 1, 2)
         
-        addPartButton = QPushButton('Add Feature')
+        addPartButton = QPushButton('Add Part')
         addPartButton.clicked.connect(self.submitPart)
         layout.addWidget(addPartButton, 6, 0, 1, 2)
         
@@ -180,10 +180,16 @@ class partForm(QWidget):
             self.featureTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
             
     def submitPart(self):
-        part_data = {
+                
+        upload_date_str = self.udInput.text()
+        upload_date = datetime.strptime(upload_date_str, '%m/%d/%Y')
+        due_date = upload_date + timedelta(days=90)
+        due_date_str = due_date.strftime('%m/%d/%Y')
+        new_part_data = {
             "partNumber": self.partInput.text(),
             "rev": self.revInput.text(),
             "uploadDate": self.udInput.text(),
+            "dueDate": due_date_str,
             "notes": self.notesInput.text(),
             "features": []
         }
@@ -195,9 +201,9 @@ class partForm(QWidget):
                 "tol": self.featureTable.item(row, 3).text(),
                 "engine": self.featureTable.item(row, 4).text(),
             }
-            part_data["features"].append(feature)
+            new_part_data["features"].append(feature)
             
-        database.submit_new_part(part_data)
+        database.submit_new_part(new_part_data)
     
         
 class dashboard(QMainWindow):
@@ -234,7 +240,7 @@ class PartFeaturesModel(QAbstractItemModel):
     def __init__(self, part_data, parent=None):
         super(PartFeaturesModel, self).__init__(parent)
         
-        self.part_data = part_data
+        self.part_data = part_data if part_data is not None else []
         
     def index(self, row, column, parent=QModelIndex()):
         if not self.hasIndex(row, column, parent):
