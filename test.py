@@ -1,64 +1,28 @@
-import sys
-import sqlite3
-import hashlib
-import re
-import datetime
-import time
-from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView
-from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtCore import Qt
-from PyQt5.QtSql import QSqlDatabase, QSqlTableModel
-from PyQt5.QtWidgets import (
-    QApplication,
-    QMainWindow,
-    QMessageBox,
-    QTableView,
-    QTreeView,
-    QTreeWidgetItem,
-)
+from pymongo import MongoClient
 
-class Ui_Form(object):
-    def setupUi(self, Form):
-        Form.setObjectName("Form")
-        Form.resize(213, 327)
-        Form.setWindowTitle("Form")
-        self.treeWidget = QtWidgets.QTreeWidget(Form)
-        self.treeWidget.setGeometry(QtCore.QRect(0, 10, 211, 311))
-        self.treeWidget.setObjectName("treeWidget")
-        self.treeWidget.headerItem().setText(0, "Categories")
-        self.treeWidget.setSortingEnabled(False)
-        self.printtree()
-        QtCore.QMetaObject.connectSlotsByName(Form)
+client: MongoClient = MongoClient()
+kpcdb = client['KPCManager']
+parts = kpcdb['parts']
+users = kpcdb['users']
 
-    def printtree(self):
-        self.treeWidget.setColumnCount(1)
-        treeItem = QtWidgets.QTreeWidgetItem([])
-        self.treeWidget.addTopLevelItem(treeItem)
+partData = {
+    'partNumber': '710410',
+    'rev': 'F',
+    'uploadDate': '8/21/2023',
+    'dueDate': '11/19/2023',
+    'notes': 'needs gage R&R',
+    'features': [{'feature': '1','designation': 'KPC1' , 'kpcNum': '84740', 'tol': '16.396 - 16.398', 'engine': 'TF33' }, 
+        {'feature': '2','designation': 'KPC1' , 'kpcNum': '109584', 'tol': '.215 Min', 'engine': 'TF33' }, 
+        {'feature': '3','designation': 'KPC1' , 'kpcNum': '109582', 'tol': '.104 Min', 'engine': 'TF33'}, 
+        {'feature': '4','designation': 'KPC1' , 'kpcNum': '84739', 'tol': '.437 - .439', 'engine': 'TF33'}, 
+        {'feature': '5','designation': 'KPC1' , 'kpcNum': '109583', 'tol': '.115 Min', 'engine': 'TF33'},
+        {'feature': '6','designation': 'KPC1' , 'kpcNum': '112276', 'tol': 'True Position .001', 'engine': 'TF33'},
+        {'feature': '7','designation': 'KPC2' , 'kpcNum': '84741', 'tol': '5.5114 - 5.5121', 'engine': 'TF33'}]
+}
 
+userData = {
+    'email': '',
+    'password': '',
+}
 
-        def displaytree():
-            conn = sqlite3.connect('kpcmanager.db') # Connection to the Database 
-            cursor = conn.cursor()
-            table = cursor.execute(f"SELECT NAME FROM Test")
-            for item in table.fetchall():
-                name = str(item[0])
-                branch_list = QtWidgets.QTreeWidgetItem([name])
-                treeItem.addChild(branch_list)
-                # I guess here should be a if statement.
-                branch_list.addChild(QtWidgets.QTreeWidgetItem(["name"]))
-        
-        displaytree()
-
-class dashboard(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("KPC Manager")
-        self.resize(1200, 800)
-        
-        layout = QVBoxLayout()
-        layout.addWidget(Ui_Form)
-        
-app = QApplication(sys.argv)
-window = dashboard()
-window.show()
-app.exec_()
+parts.insert_one(partData)

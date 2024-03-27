@@ -1,12 +1,13 @@
 import sys
-import sqlite3
 import hashlib
 import re
 import datetime
 import time
-from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView
+import typing
+from pymongo import MongoClient
+from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView, QFileSystemModel
 from PyQt5 import QtCore
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractTableModel
 from PyQt5.QtSql import QSqlDatabase, QSqlTableModel, QSqlRelation
 from PyQt5.QtWidgets import (
     QApplication,
@@ -17,10 +18,13 @@ from PyQt5.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
 )
+from utils import database
 
 
-connection = sqlite3.connect('kpcmanager.db')
-cursor = connection.cursor()
+client: MongoClient = MongoClient()
+kpcdb = client['KPCManager']
+parts = kpcdb['parts']
+users = kpcdb['users']
 emailRegex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
 passwordRegex = r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$'
 
@@ -100,9 +104,9 @@ class registerWindow(QWidget):
         layout.addWidget(self.repeatPasswordInput, 2, 1)
         
         # Register Button
-        loginButton = QPushButton('Register')
-        loginButton.clicked.connect(self.registerUser)
-        layout.addWidget(loginButton, 3, 0, 1, 2)
+        registerButton = QPushButton('Register')
+        registerButton.clicked.connect(self.registerUser)
+        layout.addWidget(registerButton, 3, 0, 1, 2)
         
         self.setLayout(layout)
         
@@ -123,42 +127,21 @@ class dashboard(QMainWindow):
         layout = QVBoxLayout()
         widget = QWidget(self)
         
-        self.mainModel = QSqlTableModel(self)
-        self.mainModel.setTable('parts')
-        self.mainModel.setEditStrategy(QSqlTableModel.OnFieldChange)
-        self.mainModel.setHeaderData(0, Qt.Horizontal, 'ID')
-        self.mainModel.setHeaderData(1, Qt.Horizontal, 'Part Number')
-        self.mainModel.setHeaderData(2, Qt.Horizontal, 'Revision Letter')
-        self.mainModel.setHeaderData(3, Qt.Horizontal, 'Net-Inspect Upload Date')
-        self.mainModel.setHeaderData(4, Qt.Horizontal, 'Notes')
-        self.mainModel.setHeaderData(5, Qt.Horizontal, 'Number of Features')
-        self.mainModel.select()
         
         commitPart = QPushButton('Add Part')
         deletePart = QPushButton('Delete Part')
         
         self.treeWidget = QTreeWidget()
         
+        self.part_data = database.getAllData()
+        print(list(self.part_data))
         
-        self.view = QTableView()
-        self.view.setModel(self.mainModel)
-        header = self.view.horizontalHeader()
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(3, QHeaderView.Stretch)
-        header.setSectionResizeMode(4, QHeaderView.Stretch)
+        self.model = TableModel(self.part_data)
         
-        deletePart.clicked.connect(lambda: self.mainModel.removeRow(self.view.currentIndex().row()))
-        commitPart.clicked.connect(self.addPart)
-        layout.addWidget(self.view)
-        layout.addWidget(commitPart)
-        layout.addWidget(deletePart)
+        self.tree_view = QTreeView(self)
+        self.tree_view.setModel(self.model)
+        self.tree_view.resize(1200,800)
         
-        widget.setLayout(layout)
-        
-        self.setCentralWidget(widget)
-        
-    def addPart(self):
-        self.mainModel.insertRows(self.mainModel.rowCount(), 1)
     
 class partForm(QWidget):
     def __init__(self):
@@ -204,33 +187,31 @@ class partForm(QWidget):
         self.setLayout(layout)
     
     
-class FeatureTable(QTableView):
-    def __init__(self):
-        super().__init__()
-        self.childModel = QSqlTableModel(self)
-        self.childModel.setTable('features')
-        self.childModel.setHeaderData(0, Qt.Horizontal, 'ID')
-        self.childModel.setHeaderData(1, Qt.Horizontal, 'KPC Number')
-        self.childModel.setHeaderData(2, Qt.Horizontal, 'KPC Designation')
-        self.childModel.setHeaderData(3, Qt.Horizontal, 'Feature Number')
-        self.childModel.setHeaderData(4, Qt.Horizontal, 'Engine')
-        self.childModel.setHeaderData(0, Qt.Horizontal, 'Parent Part')
+class TableModel(QAbstractTableModel):
+    def __init__(self, data):
+        QAbstractTableModel.__init__(self)
+        self.part_data = data
+        self.columns = list(self.part_data[0].keys())
         
-        self.view = QTableView()
-        self.view.setModel(self.childModel)
+    def data(self, index, role):
+        if role == Qt.DisplayRole:
+            row = index.row()
+            column = index.column()
+            item = self.part_data[row][self.columns[column]]
+            return str(item)
+        return None
+        
+        
+    def rowCount(self, *args, **kwargs):
+        
+        return len(self.part_data)
     
-def createConnection():
-    con = QSqlDatabase.addDatabase("QSQLITE")
-    con.setDatabaseName("kpcmanager.db")
-    if not con.open():
-        QMessageBox.critical(
-            None,
-            "QTableView Example - Error!",
-            "Database Error: %s" % con.lastError().databaseText(),
-        )
-        return False
-    return True
+    def columnCount(self, *args, **kwargs):
         
+        return len(self.columns)
+    
+    
+    
 def renderDashboard():
     global d
     d = dashboard()
@@ -260,18 +241,12 @@ def register(email, pwd, confPwd):
     elif(re.fullmatch(emailRegex, email)) and(re.fullmatch(passwordRegex, pwd)):
         enc = confPwd.encode()
         password = hashlib.md5(enc).hexdigest()
-        storedData = cursor.execute("SELECT * FROM user WHERE email = (?)", [email])
         
         loginQueue = []
-        
-        for row in storedData:
-            for x in row:
-                loginQueue.append(x)
     
         if email in loginQueue:
             userExists()
         else:
-            cursor.execute('INSERT INTO user (email, password) VALUES (?, ?)', [email, password])
             print('user has been registered')
         
     else:
@@ -300,10 +275,13 @@ def passMismatch():
     dlg.setWindowTitle('ERROR')
     dlg.setText('Passwords do not match')
     dlg.exec()
+    
+def getData():
+    data = parts.find()
+
+    return data
 
 app = QApplication(sys.argv)
-if not createConnection():
-    sys.exit(1)
 window = loginWindow()
 window.show()
 app.exec_()
