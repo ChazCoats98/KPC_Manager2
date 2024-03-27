@@ -117,7 +117,7 @@ class partForm(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Add Part")
-        self.resize(400, 300)
+        self.resize(800, 600)
         
         layout = QGridLayout()
         
@@ -150,29 +150,24 @@ class partForm(QWidget):
         layout.addWidget(self.notesInput, 1, 3)
         
         # Submit button Button
-        addPartButton = QPushButton('Add Part')
-        # addPartButton.clicked.connect(self.submitPart)
-        layout.addWidget(addPartButton, 4, 0, 1, 2)
+        addFeatureButton = QPushButton('Add Feature')
+        addFeatureButton.clicked.connect(self.addFeature)
+        layout.addWidget(addFeatureButton, 5, 0, 1, 2)
         
         self.featureTable = QTableWidget()
-        self.featureTable.setColumnCount(5)
-        
-        layout.addWidget(featuresTable)
+        self.featureTable.setColumnCount(6)
+        self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Tolerance", "Last Upload Date", "Engine"])
+        self.featureTable.horizontalHeader().setStretchLastSection(False)
+        for column in range(self.featureTable.columnCount()):
+            self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+            
+        layout.addWidget(self.featureTable, 4, 0, 1, 4)
         
         
         self.setLayout(layout)
-    
-def featuresTable(self):
-    self.tableWidget = QTableWidget()
-        
-    self.tableWidget.setColumnCount(5)
-        
-    self.tableWidget.setHorizontalHeaderItem(0, "Feature Number")
-    self.tableWidget.setHorizontalHeaderItem(1, "Designation")
-    self.tableWidget.setHorizontalHeaderItem(2, "KPC Number")
-    self.tableWidget.setHorizontalHeaderItem(3, "Tolerance")
-    self.tableWidget.setHorizontalHeaderItem(4, "Engine")
-        
+    def addFeature(self):
+            self.featureForm = FeatureForm()
+            self.featureForm.show()
     
         
 class dashboard(QMainWindow):
@@ -301,7 +296,55 @@ class PartTreeView(QTreeView):
     def setModel(self, model):
         super().setModel(model)
         
-    
+class FeatureForm(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Add Feature")
+        self.resize(600, 100)
+        
+        layout = QGridLayout()
+        
+        # Part number form 
+        partLabel = QLabel('Feature Number:')
+        self.partInput = QLineEdit()
+        self.partInput.setPlaceholderText('Enter Feature Number')
+        layout.addWidget(partLabel, 0, 0)
+        layout.addWidget(self.partInput, 1, 0)
+        
+        # Part revision form
+        revLabel = QLabel('KPC Designation:')
+        self.revInput = QLineEdit()
+        self.revInput.setPlaceholderText('Enter KPC Designation')
+        layout.addWidget(revLabel, 0, 1)
+        layout.addWidget(self.revInput, 1, 1)
+        
+        # upload date form
+        udLabel = QLabel('KPC Number:')
+        self.udInput = QLineEdit()
+        self.udInput.setPlaceholderText('Enter KPC Number from Net-Inspect')
+        layout.addWidget(udLabel, 0, 2)
+        layout.addWidget(self.udInput, 1, 2)
+        
+        # Notes form
+        notesLabel = QLabel('Requirement:')
+        self.notesInput = QLineEdit()
+        self.notesInput.setPlaceholderText('Enter Blueprint Requirement')
+        layout.addWidget(notesLabel, 0, 3)
+        layout.addWidget(self.notesInput, 1, 3)
+        
+        notesLabel = QLabel('Engine:')
+        self.notesInput = QLineEdit()
+        self.notesInput.setPlaceholderText('Enter Part Engine Program')
+        layout.addWidget(notesLabel, 0, 4)
+        layout.addWidget(self.notesInput, 1, 4)
+        
+        # Submit button Button
+        addFeatureButton = QPushButton('Add Feature')
+        # addPartButton.clicked.connect(self.submitPart)
+        layout.addWidget(addFeatureButton, 5, 0, 1, 2)
+        
+        self.setLayout(layout)
+        
 def renderDashboard():
     global d
     d = dashboard()
