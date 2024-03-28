@@ -23,10 +23,15 @@ partData = {
 
 measurementData = {
     'partNumber': '710410',
-    'kpcNum': '84740',
     'serialNumber': 'MENCAJ7293',
-    "measurement": '16.397',
-    'uploadDate': '2/1/2024'
+    'uploadDate': '2/1/2024',
+    'measurements': [{'kpcNum': '84740', 'measurement': '16.397'},
+                    {'kpcNum': '109584', 'measurement': '.2411'},
+                    {'kpcNum': '109582', 'measurement':'.121'},
+                    {'kpcNum': '84739', 'measurement':'.4379'},
+                    {'kpcNum': '109583', 'measurement':'.121'},
+                    {'kpcNum': '112276', 'measurement':'.0005'},
+                    {'kpcNum': '84741', 'measurement':'5.5117'}]
 }
 
 userData = {

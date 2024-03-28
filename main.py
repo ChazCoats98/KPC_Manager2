@@ -8,7 +8,7 @@ from pymongo import MongoClient
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView, QFileSystemModel
 from PyQt5 import QtCore
 from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractItemModel, Qt, pyqtSignal
-from PyQt5.QtSql import QSqlDatabase, QSqlTableModel, QSqlRelation
+from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -266,6 +266,11 @@ class dashboard(QMainWindow):
         self.uploadPartData.clicked.connect(self.openUploadForm)
         self.mainLayout.addWidget(self.uploadPartData)
         
+        self.showHistoricalUploads = QPushButton('Show Past Data Uploads for selected Part')
+        self.showHistoricalUploads.setStyleSheet("background-color: #439EF3")
+        self.showHistoricalUploads.clicked.connect(self.openHistoricalUploadWindow)
+        self.mainLayout.addWidget(self.showHistoricalUploads)
+        
         self.deletePart = QPushButton('Delete Part')
         self.deletePart.setStyleSheet("background-color: #D6575D")
         self.deletePart.clicked.connect(self.deleteSelectedPart)
@@ -298,6 +303,26 @@ class dashboard(QMainWindow):
         self.uploadForm.loadPartData(selectedPartData)
         self.uploadForm.dataSubmitted.connect(self.refreshTreeView)
         self.uploadForm.show()
+        
+    def openHistoricalUploadWindow(self):
+        index = self.tree_view.currentIndex()
+        if not index.isValid():
+            QMessageBox.warning(self, "Selection", "No part selected.")
+            return
+        part_id = self.model.getPartId(index)
+        if part_id is None:
+            QMessageBox.warning(self, "Error", "Failed to identify selected part.")
+            return
+        
+        selectedPartData = database.get_part_by_id(part_id)
+        selectedPartUploadData = database.get_measurements_by_id(part_id)
+        if not selectedPartData:
+            QMessageBox.warning(self, "Error", "Could not find part data.")
+            return
+        
+        self.historicalData = historicalData(partId = part_id)
+        self.historicalData.loadPartData(selectedPartData, selectedPartUploadData)
+        self.historicalData.show()
         
     def deleteSelectedPart(self):
         index = self.tree_view.currentIndex()
@@ -564,7 +589,6 @@ class uploadDataForm(QWidget):
         
         self.dataTable = QTableWidget()
         self.dataTable.setColumnCount(3)
-        self.dataTable.setHorizontalHeaderLabels(["KPC Number", "Blueprint Requirement", "Measurement"])
         self.dataTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.dataTable.columnCount()):
             self.dataTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
@@ -639,73 +663,53 @@ class historicalData(QWidget):
         layout.addWidget(revLabel, 0, 2)
         layout.addWidget(self.revLetter, 0, 3)
         
-        udLabel = QLabel('Last Net-Inspect Upload Date:')
-        self.uploadDate = QLabel('')
-        layout.addWidget(udLabel, 0, 4)
-        layout.addWidget(self.uploadDate, 0, 5)
-        
-        cancelButton = QPushButton('Cancel')
+        cancelButton = QPushButton('Close Window')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
         layout.addWidget(cancelButton, 7, 0, 1, 6)
         
-        self.dataTable = QTableWidget()
-        self.dataTable.setColumnCount(3)
-        self.dataTable.setHorizontalHeaderLabels(["KPC Number", "Blueprint Requirement", "Measurement"])
-        self.dataTable.horizontalHeader().setStretchLastSection(False)
-        for column in range(self.dataTable.columnCount()):
-            self.dataTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+        self.model = QStandardItemModel()
+        self.treeView= QTreeView()
+        self.treeView.header().setStretchLastSection(False)
+        self.treeView.header().setSectionResizeMode(QHeaderView.Stretch)
+        self.model.setHorizontalHeaderLabels(['Upload Date', 'Part Number', 'Serial Number', 'KPC Number', 'Measurement'])
+        self.treeView.setModel(self.model)
             
-        layout.addWidget(self.dataTable, 4, 0, 1, 6)
+        layout.addWidget(self.treeView, 4, 0, 1, 6)
         
         
         self.setLayout(layout)
-    def addFeature(self):
-            self.featureForm = FeatureForm(self)
-            self.featureForm.show()
-            
-    def addFeatureToTable(self, feature_data):
-        row_position = self.dataTable.rowCount()
-        self.dataTable.insertRow(row_position)
-        for i, key in enumerate(['kpcNum', 'tol']):
-            self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
-            
-    def submitData(self):
-        upload_date_value = datetime.strftime(date.today(), '%m/%d/%Y')
-        upload_date = datetime.strptime(upload_date_value, '%m/%d/%Y')
-        due_date = upload_date + timedelta(days=90)
-        due_date_str = due_date.strftime('%m/%d/%Y')
-        updated_part_data = {
-            "uploadDate": upload_date_value,
-            "dueDate": due_date_str,
-        }
-        for row in range(self.dataTable.rowCount()):
-            upload_data = {
-                "partNumber": self.partNumber.text(),
-                "kpcNum": self.dataTable.item(row, 0).text(),
-                "serialNumber": self.serialNumberInput.text(),
-                "measurement": self.dataTable.item(row, 2).text(),
-                "uploadDate": upload_date_value,
-            }
-            print(upload_data)
-            
-        def on_submit_success(is_success):
-            if is_success:
-                self.dataSubmitted.emit()
-        database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
-        database.add_measurement(upload_data)
             
         self.close()
     
-    def loadPartData(self, selectedPartData):
+    def loadPartData(self, selectedPartData, selectedPartUploadData):
         self.partNumber.setText(selectedPartData['partNumber'])
         self.revLetter.setText(selectedPartData['rev'])
-        self.uploadDate.setText(selectedPartData['uploadDate'])
         
-        self.dataTable.setRowCount(0)
+        self.model.clear()
+        self.model.setHorizontalHeaderLabels(['Upload Date','Serial Number', 'KPC Number', 'Measurement'])
         
-        for feature in selectedPartData['features']:
-            self.addFeatureToTable(feature)
+        uploadDate = selectedPartUploadData['uploadDate']
+        serialNumber = selectedPartUploadData['serialNumber']
+            
+        parentRow = [
+            QStandardItem(uploadDate),
+            QStandardItem(serialNumber),
+            QStandardItem(""),
+            QStandardItem("")
+        ]
+        self.model.appendRow(parentRow)
+            
+        for measurement in selectedPartUploadData['measurements']:
+            kpcNum = measurement['kpcNum']
+            meas = measurement['measurement']
+            childRow = [
+                QStandardItem(""),
+                QStandardItem(""),
+                QStandardItem(kpcNum),
+                QStandardItem(meas)
+            ]
+            parentRow[0].appendRow(childRow)
     
     def closeWindow(self):
         self.close()

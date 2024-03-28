@@ -70,3 +70,7 @@ def add_measurement(upload_data):
     except Exception as e:
         print(e)
     
+def get_measurements_by_id(part_id):
+    data = measurements.find_one({"partNumber":part_id})
+    print(data)
+    return data
