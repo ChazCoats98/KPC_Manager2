@@ -520,11 +520,10 @@ class FeatureForm(QWidget):
         
 class uploadDataForm(QWidget):
     dataSubmitted = pyqtSignal()
-    def __init__(self, mode="add", partId=None):
+    def __init__(self, partId=None):
         super().__init__()
-        self.mode = mode
         self.partId = partId
-        self.setWindowTitle("Part")
+        self.setWindowTitle("New Data Upload")
         self.resize(800, 600)
         
         layout = QGridLayout()
@@ -574,6 +573,93 @@ class uploadDataForm(QWidget):
         
         
         self.setLayout(layout)
+            
+    def addFeatureToTable(self, feature_data):
+        row_position = self.dataTable.rowCount()
+        self.dataTable.insertRow(row_position)
+        for i, key in enumerate(['kpcNum', 'tol']):
+            self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
+            
+    def submitData(self):
+        upload_date_value = datetime.strftime(date.today(), '%m/%d/%Y')
+        upload_date = datetime.strptime(upload_date_value, '%m/%d/%Y')
+        due_date = upload_date + timedelta(days=90)
+        due_date_str = due_date.strftime('%m/%d/%Y')
+        updated_part_data = {
+            "uploadDate": upload_date_value,
+            "dueDate": due_date_str,
+        }
+        for row in range(self.dataTable.rowCount()):
+            upload_data = {
+                "partNumber": self.partNumber.text(),
+                "kpcNum": self.dataTable.item(row, 0).text(),
+                "serialNumber": self.serialNumberInput.text(),
+                "measurement": self.dataTable.item(row, 2).text(),
+                "uploadDate": upload_date_value,
+            }
+            print(upload_data)
+            
+        def on_submit_success(is_success):
+            if is_success:
+                self.dataSubmitted.emit()
+        database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
+        database.add_measurement(upload_data)
+            
+        self.close()
+    
+    def loadPartData(self, selectedPartData):
+        self.partNumber.setText(selectedPartData['partNumber'])
+        self.revLetter.setText(selectedPartData['rev'])
+        self.uploadDate.setText(selectedPartData['uploadDate'])
+        
+        self.dataTable.setRowCount(0)
+        
+        for feature in selectedPartData['features']:
+            self.addFeatureToTable(feature)
+    
+    def closeWindow(self):
+        self.close()
+        
+class historicalData(QWidget):
+    def __init__(self, partId=None):
+        super().__init__()
+        self.partId = partId
+        self.setWindowTitle("data Upload History")
+        self.resize(800, 600)
+        
+        layout = QGridLayout()
+        
+        partLabel = QLabel('Part Number:')
+        self.partNumber = QLabel('')
+        layout.addWidget(partLabel, 0, 0)
+        layout.addWidget(self.partNumber, 0, 1)
+
+        revLabel = QLabel('Revision Letter:')
+        self.revLetter = QLabel('')
+        layout.addWidget(revLabel, 0, 2)
+        layout.addWidget(self.revLetter, 0, 3)
+        
+        udLabel = QLabel('Last Net-Inspect Upload Date:')
+        self.uploadDate = QLabel('')
+        layout.addWidget(udLabel, 0, 4)
+        layout.addWidget(self.uploadDate, 0, 5)
+        
+        cancelButton = QPushButton('Cancel')
+        cancelButton.setStyleSheet("background-color: #D6575D")
+        cancelButton.clicked.connect(self.closeWindow)
+        layout.addWidget(cancelButton, 7, 0, 1, 6)
+        
+        self.dataTable = QTableWidget()
+        self.dataTable.setColumnCount(3)
+        self.dataTable.setHorizontalHeaderLabels(["KPC Number", "Blueprint Requirement", "Measurement"])
+        self.dataTable.horizontalHeader().setStretchLastSection(False)
+        for column in range(self.dataTable.columnCount()):
+            self.dataTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+            
+        layout.addWidget(self.dataTable, 4, 0, 1, 6)
+        
+        
+        self.setLayout(layout)
     def addFeature(self):
             self.featureForm = FeatureForm(self)
             self.featureForm.show()
@@ -585,7 +671,7 @@ class uploadDataForm(QWidget):
             self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
             
     def submitData(self):
-        upload_date_value = datetime.strftime(date.today())
+        upload_date_value = datetime.strftime(date.today(), '%m/%d/%Y')
         upload_date = datetime.strptime(upload_date_value, '%m/%d/%Y')
         due_date = upload_date + timedelta(days=90)
         due_date_str = due_date.strftime('%m/%d/%Y')
@@ -595,12 +681,13 @@ class uploadDataForm(QWidget):
         }
         for row in range(self.dataTable.rowCount()):
             upload_data = {
-                "partNumber": self.dataTable.item(row, 0).text(),
+                "partNumber": self.partNumber.text(),
                 "kpcNum": self.dataTable.item(row, 0).text(),
-                "serialNumber": self.dataTable.item(row, 2).text(),
+                "serialNumber": self.serialNumberInput.text(),
                 "measurement": self.dataTable.item(row, 2).text(),
                 "uploadDate": upload_date_value,
             }
+            print(upload_data)
             
         def on_submit_success(is_success):
             if is_success:
