@@ -155,7 +155,7 @@ class partForm(QWidget):
         addFeatureButton.clicked.connect(self.addFeature)
         layout.addWidget(addFeatureButton, 5, 1, 1, 2)
         
-        addPartButton = QPushButton('Add Part')
+        addPartButton = QPushButton('Save Part')
         addPartButton.setStyleSheet("background-color: #3ADC73")
         addPartButton.clicked.connect(self.submitPart)
         layout.addWidget(addPartButton, 6, 0, 1, 4)
@@ -216,6 +216,17 @@ class partForm(QWidget):
         database.submit_new_part(new_part_data, callback=on_submit_success)
         self.close()
     
+    def loadPartData(self, selectedPartData):
+        self.partInput.setText(selectedPartData['partNumber'])
+        self.revInput.setText(selectedPartData['rev'])
+        self.udInput.setText(selectedPartData['uploadDate'])
+        self.notesInput.setText(selectedPartData['notes'])
+        
+        self.featureTable.setRowCount(0)
+        
+        for feature in selectedPartData['features']:
+            self.addFeatureToTable(feature)
+    
     def closeWindow(self):
         self.close()
         
@@ -240,6 +251,11 @@ class dashboard(QMainWindow):
         self.addPart.clicked.connect(self.openPartForm)
         self.mainLayout.addWidget(self.addPart)
         
+        self.editPart = QPushButton('Edit Selected Part')
+        self.editPart.setStyleSheet("background-color: #DFDA41")
+        self.editPart.clicked.connect(self.editSelectedPart)
+        self.mainLayout.addWidget(self.editPart)
+        
         self.deletePart = QPushButton('Delete Part')
         self.deletePart.setStyleSheet("background-color: #D6575D")
         self.deletePart.clicked.connect(self.deleteSelectedPart)
@@ -263,6 +279,28 @@ class dashboard(QMainWindow):
             QMessageBox.warning(self, "Error", "Failed to identify selected part.")
             return
         database.delete_part(self, part_id)
+        
+    def editSelectedPart(self):
+        index = self.tree_view.currentIndex()
+        if not index.isValid():
+            QMessageBox.warning(self, "Selection", "No part selected.")
+            return
+        part_id = self.model.getPartId(index)
+        print(part_id)
+        if part_id is None:
+            QMessageBox.warning(self, "Error", "Failed to identify selected part.")
+            return
+        
+        selectedPartData = database.get_part_by_id(part_id)
+        if not selectedPartData:
+            QMessageBox.warning(self, "Error", "Could not find part data.")
+            return
+        
+        self.partForm = partForm()
+        self.partForm.loadPartData(selectedPartData)
+        self.partForm.partSubmitted.connect(self.refreshTreeView)
+        self.partForm.show()
+        
         
     def refreshTreeView(self):
         updated_parts_data = database.get_all_data()
