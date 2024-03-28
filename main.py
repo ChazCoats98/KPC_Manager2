@@ -156,8 +156,14 @@ class partForm(QWidget):
         layout.addWidget(addFeatureButton, 5, 0, 1, 2)
         
         addPartButton = QPushButton('Add Part')
+        addPartButton.setStyleSheet("background-color: #3ADC73")
         addPartButton.clicked.connect(self.submitPart)
-        layout.addWidget(addPartButton, 6, 0, 1, 2)
+        layout.addWidget(addPartButton, 6, 0, 1, 4)
+        
+        cancelButton = QPushButton('Cancel')
+        cancelButton.setStyleSheet("background-color: #D6575D")
+        cancelButton.clicked.connect(self.closeWindow)
+        layout.addWidget(cancelButton, 7, 0, 1, 4)
         
         self.featureTable = QTableWidget()
         self.featureTable.setColumnCount(5)
@@ -210,6 +216,8 @@ class partForm(QWidget):
         database.submit_new_part(new_part_data, callback=on_submit_success)
         self.close()
     
+    def closeWindow(self):
+        self.close()
         
 class dashboard(QMainWindow):
     def __init__(self):
@@ -228,10 +236,12 @@ class dashboard(QMainWindow):
         self.mainLayout.addWidget(self.tree_view)
         
         self.addPart = QPushButton('Add Part')
+        self.addPart.setStyleSheet("background-color: #3ADC73")
         self.addPart.clicked.connect(self.openPartForm)
         self.mainLayout.addWidget(self.addPart)
         
         self.deletePart = QPushButton('Delete Part')
+        self.deletePart.setStyleSheet("background-color: #D6575D")
         self.deletePart.clicked.connect(self.deleteSelectedPart)
         self.mainLayout.addWidget(self.deletePart)
         
