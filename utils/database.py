@@ -60,5 +60,13 @@ def delete_part(self, part_id):
         QMessageBox.warning(self, "Error", "Failed to delete selected part." )
         
     
-def add_measurement(measurement_data):
-    result = measurements.insert_one()
+def add_measurement(upload_data):
+    try:
+        result = measurements.insert_one(upload_data)
+        if result.acknowledged:
+            print("Upload success")
+        else: 
+            print("upload failure")
+    except Exception as e:
+        print(e)
+    

@@ -1,7 +1,7 @@
 import sys
 import hashlib
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import time
 import typing
 from pymongo import MongoClient
@@ -229,7 +229,6 @@ class partForm(QWidget):
         self.notesInput.setText(selectedPartData['notes'])
         
         self.featureTable.setRowCount(0)
-        
         for feature in selectedPartData['features']:
             self.addFeatureToTable(feature)
     
@@ -262,6 +261,11 @@ class dashboard(QMainWindow):
         self.editPart.clicked.connect(self.editSelectedPart)
         self.mainLayout.addWidget(self.editPart)
         
+        self.uploadPartData = QPushButton('Upload Data for selected Part')
+        self.uploadPartData.setStyleSheet("background-color: #E6A42B")
+        self.uploadPartData.clicked.connect(self.openUploadForm)
+        self.mainLayout.addWidget(self.uploadPartData)
+        
         self.deletePart = QPushButton('Delete Part')
         self.deletePart.setStyleSheet("background-color: #D6575D")
         self.deletePart.clicked.connect(self.deleteSelectedPart)
@@ -274,6 +278,26 @@ class dashboard(QMainWindow):
         self.partForm = partForm()
         self.partForm.partSubmitted.connect(self.refreshTreeView)
         self.partForm.show()
+        
+    def openUploadForm(self):
+        index = self.tree_view.currentIndex()
+        if not index.isValid():
+            QMessageBox.warning(self, "Selection", "No part selected.")
+            return
+        part_id = self.model.getPartId(index)
+        if part_id is None:
+            QMessageBox.warning(self, "Error", "Failed to identify selected part.")
+            return
+        
+        selectedPartData = database.get_part_by_id(part_id)
+        if not selectedPartData:
+            QMessageBox.warning(self, "Error", "Could not find part data.")
+            return
+        
+        self.uploadForm = uploadDataForm(partId = part_id)
+        self.uploadForm.loadPartData(selectedPartData)
+        self.uploadForm.dataSubmitted.connect(self.refreshTreeView)
+        self.uploadForm.show()
         
     def deleteSelectedPart(self):
         index = self.tree_view.currentIndex()
@@ -305,7 +329,7 @@ class dashboard(QMainWindow):
         self.partForm = partForm(mode="edit", partId=part_id)
         self.partForm.loadPartData(selectedPartData)
         self.partForm.partSubmitted.connect(self.refreshTreeView)
-        self.partForm.show()
+        self.partForm.show()       
         
         
     def refreshTreeView(self):
@@ -491,6 +515,111 @@ class FeatureForm(QWidget):
             
         self.close()
         
+    def closeWindow(self):
+        self.close()
+        
+class uploadDataForm(QWidget):
+    dataSubmitted = pyqtSignal()
+    def __init__(self, mode="add", partId=None):
+        super().__init__()
+        self.mode = mode
+        self.partId = partId
+        self.setWindowTitle("Part")
+        self.resize(800, 600)
+        
+        layout = QGridLayout()
+        
+        # Part number form 
+        partLabel = QLabel('Part Number:')
+        self.partNumber = QLabel('')
+        layout.addWidget(partLabel, 0, 0)
+        layout.addWidget(self.partNumber, 0, 1)
+        
+        # Part revision form
+        revLabel = QLabel('Revision Letter:')
+        self.revLetter = QLabel('')
+        layout.addWidget(revLabel, 0, 2)
+        layout.addWidget(self.revLetter, 0, 3)
+        
+        # upload date form
+        udLabel = QLabel('Last Net-Inspect Upload Date:')
+        self.uploadDate = QLabel('')
+        layout.addWidget(udLabel, 0, 4)
+        layout.addWidget(self.uploadDate, 0, 5)
+        
+        serialNumberLabel = QLabel('Serial Number:')
+        self.serialNumberInput = QLineEdit()
+        self.serialNumberInput.setPlaceholderText('Enter Serial Number')
+        layout.addWidget(serialNumberLabel, 2, 0)
+        layout.addWidget(self.serialNumberInput, 2, 1, 1, 2)
+        
+        addPartButton = QPushButton('Save Data')
+        addPartButton.setStyleSheet("background-color: #3ADC73")
+        addPartButton.clicked.connect(self.submitData)
+        layout.addWidget(addPartButton, 6, 0, 1, 6)
+        
+        cancelButton = QPushButton('Cancel')
+        cancelButton.setStyleSheet("background-color: #D6575D")
+        cancelButton.clicked.connect(self.closeWindow)
+        layout.addWidget(cancelButton, 7, 0, 1, 6)
+        
+        self.dataTable = QTableWidget()
+        self.dataTable.setColumnCount(3)
+        self.dataTable.setHorizontalHeaderLabels(["KPC Number", "Blueprint Requirement", "Measurement"])
+        self.dataTable.horizontalHeader().setStretchLastSection(False)
+        for column in range(self.dataTable.columnCount()):
+            self.dataTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+            
+        layout.addWidget(self.dataTable, 4, 0, 1, 6)
+        
+        
+        self.setLayout(layout)
+    def addFeature(self):
+            self.featureForm = FeatureForm(self)
+            self.featureForm.show()
+            
+    def addFeatureToTable(self, feature_data):
+        row_position = self.dataTable.rowCount()
+        self.dataTable.insertRow(row_position)
+        for i, key in enumerate(['kpcNum', 'tol']):
+            self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
+            
+    def submitData(self):
+        upload_date_value = datetime.strftime(date.today())
+        upload_date = datetime.strptime(upload_date_value, '%m/%d/%Y')
+        due_date = upload_date + timedelta(days=90)
+        due_date_str = due_date.strftime('%m/%d/%Y')
+        updated_part_data = {
+            "uploadDate": upload_date_value,
+            "dueDate": due_date_str,
+        }
+        for row in range(self.dataTable.rowCount()):
+            upload_data = {
+                "partNumber": self.dataTable.item(row, 0).text(),
+                "kpcNum": self.dataTable.item(row, 0).text(),
+                "serialNumber": self.dataTable.item(row, 2).text(),
+                "measurement": self.dataTable.item(row, 2).text(),
+                "uploadDate": upload_date_value,
+            }
+            
+        def on_submit_success(is_success):
+            if is_success:
+                self.dataSubmitted.emit()
+        database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
+        database.add_measurement(upload_data)
+            
+        self.close()
+    
+    def loadPartData(self, selectedPartData):
+        self.partNumber.setText(selectedPartData['partNumber'])
+        self.revLetter.setText(selectedPartData['rev'])
+        self.uploadDate.setText(selectedPartData['uploadDate'])
+        
+        self.dataTable.setRowCount(0)
+        
+        for feature in selectedPartData['features']:
+            self.addFeatureToTable(feature)
+    
     def closeWindow(self):
         self.close()
         
