@@ -153,7 +153,7 @@ class partForm(QWidget):
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
         addFeatureButton.clicked.connect(self.addFeature)
-        layout.addWidget(addFeatureButton, 5, 0, 1, 2)
+        layout.addWidget(addFeatureButton, 5, 1, 1, 2)
         
         addPartButton = QPushButton('Add Part')
         addPartButton.setStyleSheet("background-color: #3ADC73")
@@ -422,8 +422,14 @@ class FeatureForm(QWidget):
         
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
+        addFeatureButton.setStyleSheet("background-color: #3ADC73")
         addFeatureButton.clicked.connect(self.submitFeature)
-        layout.addWidget(addFeatureButton, 5, 0, 1, 2)
+        layout.addWidget(addFeatureButton, 2, 2, 1, 1)
+        
+        cancelButton = QPushButton('Cancel')
+        cancelButton.setStyleSheet("background-color: #D6575D")
+        cancelButton.clicked.connect(self.closeWindow)
+        layout.addWidget(cancelButton, 3, 2, 1, 1)
         
         self.setLayout(layout)
         
@@ -439,6 +445,9 @@ class FeatureForm(QWidget):
         if self.parent:
             self.parent.addFeatureToTable(feature_data)
             
+        self.close()
+        
+    def closeWindow(self):
         self.close()
         
 def renderDashboard():
