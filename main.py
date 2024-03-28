@@ -7,7 +7,7 @@ import typing
 from pymongo import MongoClient
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView, QFileSystemModel
 from PyQt5 import QtCore
-from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractItemModel, Qt
+from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractItemModel, Qt, pyqtSignal
 from PyQt5.QtSql import QSqlDatabase, QSqlTableModel, QSqlRelation
 from PyQt5.QtWidgets import (
     QApplication,
@@ -114,6 +114,7 @@ class registerWindow(QWidget):
         register(email, pwd, confPwd)
         
 class partForm(QWidget):
+    partSubmitted = pyqtSignal()
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Add Part")
@@ -202,8 +203,12 @@ class partForm(QWidget):
                 "engine": self.featureTable.item(row, 4).text(),
             }
             new_part_data["features"].append(feature)
+        def on_submit_success(is_success):
+            if is_success:
+                self.partSubmitted.emit()
             
-        database.submit_new_part(new_part_data)
+        database.submit_new_part(new_part_data, callback=on_submit_success)
+        self.close()
     
         
 class dashboard(QMainWindow):
@@ -226,16 +231,34 @@ class dashboard(QMainWindow):
         self.addPart.clicked.connect(self.openPartForm)
         self.mainLayout.addWidget(self.addPart)
         
-        deletePart = QPushButton('Delete Part')
+        self.deletePart = QPushButton('Delete Part')
+        self.deletePart.clicked.connect(self.deleteSelectedPart)
+        self.mainLayout.addWidget(self.deletePart)
         
         self.mainWidget.setLayout(self.mainLayout)
         self.setCentralWidget(self.mainWidget)
         
     def openPartForm(self):
         self.partForm = partForm()
+        self.partForm.partSubmitted.connect(self.refreshTreeView)
         self.partForm.show()
         
-    
+    def deleteSelectedPart(self):
+        index = self.tree_view.currentIndex()
+        if not index.isValid():
+            QMessageBox.warning(self, "Selection", "No part selected.")
+            return
+        part_id = self.model.getPartId(index)
+        if part_id is None:
+            QMessageBox.warning(self, "Error", "Failed to identify selected part.")
+            return
+        database.delete_part(self, part_id)
+        
+    def refreshTreeView(self):
+        updated_parts_data = database.get_all_data()
+        
+        self.model.updateData(updated_parts_data)
+        
 class PartFeaturesModel(QAbstractItemModel):
     def __init__(self, part_data, parent=None):
         super(PartFeaturesModel, self).__init__(parent)
@@ -318,7 +341,19 @@ class PartFeaturesModel(QAbstractItemModel):
                 return headers[section]
         return None
             
-            
+    def getPartId(self, index):
+        if not index.isValid():
+            return None
+        item = index.internalPointer()
+        
+        return item.get('partNumber')
+    
+    def updateData(self, new_data):
+        self.beginResetModel()
+        self.part_data = new_data
+        self.endResetModel()
+        
+        
 class PartTreeView(QTreeView):
     def __init__(self, parent=None):
         super().__init__(parent)
