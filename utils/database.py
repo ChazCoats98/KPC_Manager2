@@ -17,6 +17,22 @@ def get_part_by_id(part_id):
     print(data)
     return data
 
+def update_part_by_id(partId, new_part_data, callback=None):
+    try:
+        result = parts.update_one({"partNumber": partId}, {"$set": new_part_data})
+        if result.modified_count > 0:
+            print("Part updated successfully")
+            if callback: 
+                callback(True)
+            else: 
+                print("No changes made to part")
+                if callback:
+                    callback(False)
+    except Exception as e: 
+        print(e)
+        if callback:
+            callback(False)
+
 def submit_new_part(new_part_data, callback=None):
     try: 
         result = parts.insert_one(new_part_data)

@@ -115,9 +115,11 @@ class registerWindow(QWidget):
         
 class partForm(QWidget):
     partSubmitted = pyqtSignal()
-    def __init__(self):
+    def __init__(self, mode="add", partId=None):
         super().__init__()
-        self.setWindowTitle("Add Part")
+        self.mode = mode
+        self.partId = partId
+        self.setWindowTitle("Part")
         self.resize(800, 600)
         
         layout = QGridLayout()
@@ -209,11 +211,15 @@ class partForm(QWidget):
                 "engine": self.featureTable.item(row, 4).text(),
             }
             new_part_data["features"].append(feature)
+            
         def on_submit_success(is_success):
             if is_success:
                 self.partSubmitted.emit()
+        if self.mode == "add":
+            database.submit_new_part(new_part_data, callback=on_submit_success)
+        elif self.mode == "edit":
+            database.update_part_by_id(self.partId, new_part_data, callback=on_submit_success)
             
-        database.submit_new_part(new_part_data, callback=on_submit_success)
         self.close()
     
     def loadPartData(self, selectedPartData):
@@ -296,7 +302,7 @@ class dashboard(QMainWindow):
             QMessageBox.warning(self, "Error", "Could not find part data.")
             return
         
-        self.partForm = partForm()
+        self.partForm = partForm(mode="edit", partId=part_id)
         self.partForm.loadPartData(selectedPartData)
         self.partForm.partSubmitted.connect(self.refreshTreeView)
         self.partForm.show()
