@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QMessageBox
 client: MongoClient = MongoClient()
 kpcdb = client['KPCManager']
 parts = kpcdb['parts']
+measurements = kpcdb['measurements']
 
 def get_all_data():
     data = parts.find()
@@ -58,4 +59,6 @@ def delete_part(self, part_id):
     else: 
         QMessageBox.warning(self, "Error", "Failed to delete selected part." )
         
-        
+    
+def add_measurement(measurement_data):
+    result = measurements.insert_one()

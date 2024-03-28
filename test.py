@@ -4,6 +4,7 @@ client: MongoClient = MongoClient()
 kpcdb = client['KPCManager']
 parts = kpcdb['parts']
 users = kpcdb['users']
+measurements = kpcdb['measurements']
 
 partData = {
     'partNumber': '710410',
@@ -20,9 +21,17 @@ partData = {
         {'feature': '7','designation': 'KPC2' , 'kpcNum': '84741', 'tol': '5.5114 - 5.5121', 'engine': 'TF33'}]
 }
 
+measurementData = {
+    'partNumber': '710410',
+    'kpcNum': '84740',
+    'serialNumber': 'MENCAJ7293',
+    "measurement": '16.397',
+    'uploadDate': '2/1/2024'
+}
+
 userData = {
     'email': '',
     'password': '',
 }
 
-parts.insert_one(partData)
+measurements.insert_one(measurementData)
