@@ -59,6 +59,9 @@ def delete_part(self, part_id):
     else: 
         QMessageBox.warning(self, "Error", "Failed to delete selected part." )
         
+def check_for_part(part_number):
+    count = parts.count_documents({"partNumber": part_number})
+    return count > 0
     
 def add_measurement(upload_data):
     try:

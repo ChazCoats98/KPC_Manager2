@@ -1,10 +1,13 @@
 from pymongo import MongoClient
+import pandas as pd
 
 client: MongoClient = MongoClient()
 kpcdb = client['KPCManager']
 parts = kpcdb['parts']
 users = kpcdb['users']
 measurements = kpcdb['measurements']
+
+df = pd.read_excel('710410_data.xlsx')
 
 partData = {
     'partNumber': '710410',
@@ -21,22 +24,14 @@ partData = {
         {'feature': '7','designation': 'KPC2' , 'kpcNum': '84741', 'tol': '5.5114 - 5.5121', 'engine': 'TF33'}]
 }
 
-measurementData = {
-    'partNumber': '710410',
-    'serialNumber': 'MENCAJ7293',
-    'uploadDate': '2/1/2024',
-    'measurements': [{'kpcNum': '84740', 'measurement': '16.397'},
-                    {'kpcNum': '109584', 'measurement': '.2411'},
-                    {'kpcNum': '109582', 'measurement':'.121'},
-                    {'kpcNum': '84739', 'measurement':'.4379'},
-                    {'kpcNum': '109583', 'measurement':'.121'},
-                    {'kpcNum': '112276', 'measurement':'.0005'},
-                    {'kpcNum': '84741', 'measurement':'5.5117'}]
-}
+for (partNumber, serialNumber, uploadDate), group in df.groupby(['partNumber', 'serialNumber', "uploadDate"]):
+    measurement_data = {
+        'partNumber': partNumber,
+        'serialNumber': serialNumber,
+        'uploadDate': uploadDate,
+        'measurements': group[['kpcNum', 'measurement']].to_dict('records')
+        
+    }
 
-userData = {
-    'email': '',
-    'password': '',
-}
 
-measurements.insert_one(measurementData)
+measurements.insert_one(measurement_data)

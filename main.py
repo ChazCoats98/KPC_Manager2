@@ -190,8 +190,20 @@ class partForm(QWidget):
             
     def submitPart(self):
                 
-        upload_date_str = self.udInput.text()
-        upload_date = datetime.strptime(upload_date_str, '%m/%d/%Y')
+        upload_date_str = self.udInput.text().strip()
+        if not upload_date_str:
+            QMessageBox.warning(self, "Error", "Upload date cannot be empty.")
+            return
+        try: 
+            upload_date = datetime.strptime(upload_date_str, '%m/%d/%Y')
+        except ValueError:
+            QMessageBox.warning(self, "Error", "Upload date must be in MM/DD/YYYY Format.")
+            return
+        
+        if database.check_for_part(self.partInput.text()):
+            QMessageBox.warning(self, "Error", "Part already exists in database.")
+            return
+            
         due_date = upload_date + timedelta(days=90)
         due_date_str = due_date.strftime('%m/%d/%Y')
         new_part_data = {
