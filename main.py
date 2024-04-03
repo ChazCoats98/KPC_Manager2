@@ -7,7 +7,7 @@ import typing
 from pymongo import MongoClient
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView, QFileSystemModel
 from PyQt5 import QtCore
-from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractItemModel, Qt, pyqtSignal
+from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractItemModel, Qt, pyqtSignal, QSortFilterProxyModel
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import (
     QApplication,
@@ -256,12 +256,15 @@ class dashboard(QMainWindow):
         self.mainWidget = QWidget(self)
         self.mainLayout = QVBoxLayout()
         
-        self.tree_view = PartTreeView(self)
+        self.treeView = PartTreeView(self)
         self.part_data = database.get_all_data()
         self.model = PartFeaturesModel(self.part_data)
-        self.tree_view.setModel(self.model)
-        self.tree_view.resize(1200,800)
-        self.mainLayout.addWidget(self.tree_view)
+        self.proxyModel = QSortFilterProxyModel(self)
+        self.proxyModel.setSourceModel(self.model)
+        self.treeView.setModel(self.proxyModel)
+        self.treeView.setSortingEnabled(True)
+        self.treeView.resize(1200,800)
+        self.mainLayout.addWidget(self.treeView)
         
         self.addPart = QPushButton('Add Part')
         self.addPart.setStyleSheet("background-color: #3ADC73")
@@ -687,6 +690,8 @@ class historicalData(QWidget):
         self.treeView.header().setSectionResizeMode(QHeaderView.Stretch)
         self.model.setHorizontalHeaderLabels(['Upload Date', 'Part Number', 'Serial Number', 'KPC Number', 'Measurement'])
         self.treeView.setModel(self.model)
+        self.treeView.setSortingEnabled(True)
+        
             
         layout.addWidget(self.treeView, 4, 0, 1, 6)
         
@@ -694,6 +699,12 @@ class historicalData(QWidget):
         self.setLayout(layout)
             
         self.close()
+        
+    def getTolerance(self, selectedPartData, kpcNum):
+        for feature in selectedPartData['features']:
+            if feature['kpcNum'] == kpcNum:
+                return feature['tol']
+        return "N/A"
     
     def loadPartData(self, selectedPartData, selectedPartUploadData):
         self.partNumber.setText(selectedPartData['partNumber'])
@@ -701,11 +712,12 @@ class historicalData(QWidget):
         print(selectedPartUploadData)
         
         self.model.clear()
-        self.model.setHorizontalHeaderLabels(['Upload Date','Serial Number', 'KPC Number', 'Measurement'])
+        self.model.setHorizontalHeaderLabels(['Upload Date','Serial Number', 'KPC Number', 'Blueprint Requirement', 'Measurement'])
+        self.treeView.sortByColumn(0, Qt.AscendingOrder)
         
         for uploadData in selectedPartUploadData:
-            uploadDate = uploadData.get('uploadDate', "")
-            serialNumber = uploadData.get('serialNumber', "")
+            uploadDate = uploadData['uploadDate']
+            serialNumber = uploadData['serialNumber']
             
             parentRow = [
                 QStandardItem(uploadDate),
@@ -717,13 +729,15 @@ class historicalData(QWidget):
             
             if 'measurements' in uploadData:
             
-                for measurement in selectedPartUploadData['measurements']:
+                for measurement in uploadData['measurements']:
                     kpcNum = measurement['kpcNum']
                     meas = measurement['measurement']
+                    tolerance = self.getTolerance(selectedPartData, kpcNum)
                     childRow = [
                         QStandardItem(""),
                         QStandardItem(""),
                         QStandardItem(kpcNum),
+                        QStandardItem(tolerance),
                         QStandardItem(meas)
                     ]
                     parentRow[0].appendRow(childRow)
