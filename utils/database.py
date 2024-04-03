@@ -74,6 +74,5 @@ def add_measurement(upload_data):
         print(e)
     
 def get_measurements_by_id(part_id):
-    data = measurements.find_one({"partNumber":part_id})
-    print(data)
-    return data
+    data = measurements.find({"partNumber":part_id})
+    return list(data)

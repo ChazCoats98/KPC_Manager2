@@ -319,7 +319,7 @@ class dashboard(QMainWindow):
     def openHistoricalUploadWindow(self):
         index = self.tree_view.currentIndex()
         if not index.isValid():
-            QMessageBox.warning(self, "Selection", "No part selected.")
+            QMessageBox.warning(self, "Error", "No part selected.")
             return
         part_id = self.model.getPartId(index)
         if part_id is None:
@@ -328,11 +328,12 @@ class dashboard(QMainWindow):
         
         selectedPartData = database.get_part_by_id(part_id)
         selectedPartUploadData = database.get_measurements_by_id(part_id)
+        print(selectedPartUploadData)
         if not selectedPartData:
             QMessageBox.warning(self, "Error", "Could not find part data.")
             return
         
-        self.historicalData = historicalData(partId = part_id)
+        self.historicalData = historicalData()
         self.historicalData.loadPartData(selectedPartData, selectedPartUploadData)
         self.historicalData.show()
         
@@ -697,31 +698,35 @@ class historicalData(QWidget):
     def loadPartData(self, selectedPartData, selectedPartUploadData):
         self.partNumber.setText(selectedPartData['partNumber'])
         self.revLetter.setText(selectedPartData['rev'])
+        print(selectedPartUploadData)
         
         self.model.clear()
         self.model.setHorizontalHeaderLabels(['Upload Date','Serial Number', 'KPC Number', 'Measurement'])
         
-        uploadDate = selectedPartUploadData['uploadDate']
-        serialNumber = selectedPartUploadData['serialNumber']
+        for uploadData in selectedPartUploadData:
+            uploadDate = uploadData.get('uploadDate', "")
+            serialNumber = uploadData.get('serialNumber', "")
             
-        parentRow = [
-            QStandardItem(uploadDate),
-            QStandardItem(serialNumber),
-            QStandardItem(""),
-            QStandardItem("")
-        ]
-        self.model.appendRow(parentRow)
-            
-        for measurement in selectedPartUploadData['measurements']:
-            kpcNum = measurement['kpcNum']
-            meas = measurement['measurement']
-            childRow = [
+            parentRow = [
+                QStandardItem(uploadDate),
+                QStandardItem(serialNumber),
                 QStandardItem(""),
-                QStandardItem(""),
-                QStandardItem(kpcNum),
-                QStandardItem(meas)
+                QStandardItem("")
             ]
-            parentRow[0].appendRow(childRow)
+            self.model.appendRow(parentRow)
+            
+            if 'measurements' in uploadData:
+            
+                for measurement in selectedPartUploadData['measurements']:
+                    kpcNum = measurement['kpcNum']
+                    meas = measurement['measurement']
+                    childRow = [
+                        QStandardItem(""),
+                        QStandardItem(""),
+                        QStandardItem(kpcNum),
+                        QStandardItem(meas)
+                    ]
+                    parentRow[0].appendRow(childRow)
     
     def closeWindow(self):
         self.close()
