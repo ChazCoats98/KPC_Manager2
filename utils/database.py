@@ -3,6 +3,7 @@ from pymongo import MongoClient
 from datetime import datetime, timedelta
 from PyQt5.QtWidgets import QMessageBox
 
+
 client: MongoClient = MongoClient()
 kpcdb = client['KPCManager']
 parts = kpcdb['parts']
@@ -75,4 +76,35 @@ def add_measurement(upload_data):
     
 def get_measurements_by_id(part_id):
     data = measurements.find({"partNumber":part_id})
-    return list(data)
+    return (list(data))
+
+def delete_duplicate_measurements():
+    parts = measurements.find()
+    
+    for part in parts:
+        seen = set()
+        unique_measurements = []
+        for measurement in part.get('measurements', []):
+            identifier = (measurement['kpcNum'], measurement['measurement'])
+            if identifier not in seen: 
+                seen.add(identifier)
+                unique_measurements.append(measurement)
+                
+        measurements.update_one(
+            {'_id': part['_id']},
+            {'$set': {'measurements': unique_measurements}}
+        )
+        
+def delete_measurement_by_id(self, partNumber, serialNumber, uploadDate, callback=None):
+    try:
+        result = measurements.delete_one({'partNumber': partNumber, 'serialNumber': serialNumber, 'uploadDate':uploadDate})
+        if result.deleted_count > 0:
+            QMessageBox.information(self,"Success", "measurement deleted successfully." )
+            return result.deleted_count
+        else: 
+            QMessageBox.warning(self, "Error", "Failed to delete selected measurement." )
+            callback(False)
+    except Exception as e:
+        print(e)
+        return
+    

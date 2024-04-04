@@ -1,4 +1,5 @@
 import sys
+import numpy as np
 import hashlib
 import re
 from datetime import datetime, timedelta, date
@@ -256,15 +257,15 @@ class dashboard(QMainWindow):
         self.mainWidget = QWidget(self)
         self.mainLayout = QVBoxLayout()
         
-        self.treeView = PartTreeView(self)
+        self.tree_view = PartTreeView(self)
         self.part_data = database.get_all_data()
         self.model = PartFeaturesModel(self.part_data)
         self.proxyModel = QSortFilterProxyModel(self)
         self.proxyModel.setSourceModel(self.model)
-        self.treeView.setModel(self.proxyModel)
-        self.treeView.setSortingEnabled(True)
-        self.treeView.resize(1200,800)
-        self.mainLayout.addWidget(self.treeView)
+        self.tree_view.setModel(self.proxyModel)
+        self.tree_view.setSortingEnabled(True)
+        self.tree_view.resize(1200,800)
+        self.mainLayout.addWidget(self.tree_view)
         
         self.addPart = QPushButton('Add Part')
         self.addPart.setStyleSheet("background-color: #3ADC73")
@@ -304,18 +305,24 @@ class dashboard(QMainWindow):
         if not index.isValid():
             QMessageBox.warning(self, "Selection", "No part selected.")
             return
-        part_id = self.model.getPartId(index)
+        sourceIndex = self.proxyModel.mapToSource(index)
+        part_id = self.model.getPartId(sourceIndex)
         if part_id is None:
             QMessageBox.warning(self, "Error", "Failed to identify selected part.")
             return
         
         selectedPartData = database.get_part_by_id(part_id)
+        try: 
+            selectedPartUploadData = database.get_measurements_by_id(part_id)
+        except Exception as e:
+            print("Error fetching upload data: ", e)
+            
         if not selectedPartData:
             QMessageBox.warning(self, "Error", "Could not find part data.")
             return
         
         self.uploadForm = uploadDataForm(partId = part_id)
-        self.uploadForm.loadPartData(selectedPartData)
+        self.uploadForm.loadPartData(selectedPartData, selectedPartUploadData)
         self.uploadForm.dataSubmitted.connect(self.refreshTreeView)
         self.uploadForm.show()
         
@@ -324,28 +331,34 @@ class dashboard(QMainWindow):
         if not index.isValid():
             QMessageBox.warning(self, "Error", "No part selected.")
             return
-        part_id = self.model.getPartId(index)
+        sourceIndex = self.proxyModel.mapToSource(index)
+        part_id = self.model.getPartId(sourceIndex)
         if part_id is None:
             QMessageBox.warning(self, "Error", "Failed to identify selected part.")
             return
         
         selectedPartData = database.get_part_by_id(part_id)
         selectedPartUploadData = database.get_measurements_by_id(part_id)
-        print(selectedPartUploadData)
-        if not selectedPartData:
+        if not selectedPartData or selectedPartUploadData is None:
             QMessageBox.warning(self, "Error", "Could not find part data.")
             return
         
-        self.historicalData = historicalData()
-        self.historicalData.loadPartData(selectedPartData, selectedPartUploadData)
-        self.historicalData.show()
+        try: 
+            self.historicalData = historicalData(partId=part_id)
+            self.historicalData.loadPartData(selectedPartData, selectedPartUploadData)
+            database.delete_duplicate_measurements()
+            self.historicalData.show()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+            print(e)
         
     def deleteSelectedPart(self):
         index = self.tree_view.currentIndex()
         if not index.isValid():
             QMessageBox.warning(self, "Selection", "No part selected.")
             return
-        part_id = self.model.getPartId(index)
+        sourceIndex = self.proxyModel.mapToSource(index)
+        part_id = self.model.getPartId(sourceIndex)
         if part_id is None:
             QMessageBox.warning(self, "Error", "Failed to identify selected part.")
             return
@@ -356,8 +369,8 @@ class dashboard(QMainWindow):
         if not index.isValid():
             QMessageBox.warning(self, "Selection", "No part selected.")
             return
-        part_id = self.model.getPartId(index)
-        print(part_id)
+        sourceIndex = self.proxyModel.mapToSource(index)
+        part_id = self.model.getPartId(sourceIndex)
         if part_id is None:
             QMessageBox.warning(self, "Error", "Failed to identify selected part.")
             return
@@ -637,7 +650,6 @@ class uploadDataForm(QWidget):
                 "measurement": self.dataTable.item(row, 2).text(),
                 "uploadDate": upload_date_value,
             }
-            print(upload_data)
             
         def on_submit_success(is_success):
             if is_success:
@@ -679,6 +691,11 @@ class historicalData(QWidget):
         layout.addWidget(revLabel, 0, 2)
         layout.addWidget(self.revLetter, 0, 3)
         
+        deleteMeasButton = QPushButton('Delete Current Measurement Record')
+        deleteMeasButton.setStyleSheet("background-color: #D6575D")
+        deleteMeasButton.clicked.connect(self.deleteMeasurement)
+        layout.addWidget(deleteMeasButton, 6, 0, 1, 6)
+        
         cancelButton = QPushButton('Close Window')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
@@ -706,10 +723,24 @@ class historicalData(QWidget):
                 return feature['tol']
         return "N/A"
     
+    def deleteMeasurement(self):
+        index = self.treeView.currentIndex()
+        if not index.isValid():
+            QMessageBox.warning(self, "Error", "No measurement selected.")
+            return
+        
+        uploadDate = self.model.itemFromIndex(index.sibling(index.row(), 0)).text()
+        serialNumber = self.model.itemFromIndex(index.sibling(index.row(), 1)).text()
+        partNumber = self.partNumber.text()
+        
+        result = database.delete_measurement_by_id(self, partNumber, serialNumber, uploadDate)
+        if result > 0:
+                self.refreshTreeView()
+        
+    
     def loadPartData(self, selectedPartData, selectedPartUploadData):
         self.partNumber.setText(selectedPartData['partNumber'])
         self.revLetter.setText(selectedPartData['rev'])
-        print(selectedPartUploadData)
         
         self.model.clear()
         self.model.setHorizontalHeaderLabels(['Upload Date','Serial Number', 'KPC Number', 'Blueprint Requirement', 'Measurement'])
@@ -741,6 +772,21 @@ class historicalData(QWidget):
                         QStandardItem(meas)
                     ]
                     parentRow[0].appendRow(childRow)
+                    
+    def refreshTreeView(self):
+        part_id = self.partId
+        selectedPartData = database.get_part_by_id(part_id)
+        selectedPartUploadData = database.get_measurements_by_id(part_id)
+        currentSortColumn = self.treeView.header().sortIndicatorSection()
+        currentSortOrder = self.treeView.header().sortIndicatorOrder()
+        currentScrollPosition = self.treeView.verticalScrollBar().value()
+        
+        self.loadPartData(selectedPartData, selectedPartUploadData)
+        
+        self.treeView.header().setSortIndicator(currentSortColumn, currentSortOrder)
+        self.treeView.sortByColumn(currentSortColumn, currentSortOrder)
+        self.treeView.verticalScrollBar().setValue(currentScrollPosition)
+        print(currentScrollPosition)
     
     def closeWindow(self):
         self.close()
@@ -808,6 +854,9 @@ def passMismatch():
     dlg.setWindowTitle('ERROR')
     dlg.setText('Passwords do not match')
     dlg.exec()
+    
+def parse_tolerance():
+    partData = database.
     
 app = QApplication(sys.argv)
 window = loginWindow()

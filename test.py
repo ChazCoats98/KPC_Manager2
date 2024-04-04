@@ -7,7 +7,7 @@ parts = kpcdb['parts']
 users = kpcdb['users']
 measurements = kpcdb['measurements']
 
-df = pd.read_excel('710410_data.xlsx')
+df = pd.read_excel('part_data.xlsx')
 
 
 for (partNumber, serialNumber, uploadDate), group in df.groupby(['partNumber', 'serialNumber','uploadDate']):
