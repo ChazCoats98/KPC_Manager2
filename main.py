@@ -312,17 +312,13 @@ class dashboard(QMainWindow):
             return
         
         selectedPartData = database.get_part_by_id(part_id)
-        try: 
-            selectedPartUploadData = database.get_measurements_by_id(part_id)
-        except Exception as e:
-            print("Error fetching upload data: ", e)
             
         if not selectedPartData:
             QMessageBox.warning(self, "Error", "Could not find part data.")
             return
         
         self.uploadForm = uploadDataForm(partId = part_id)
-        self.uploadForm.loadPartData(selectedPartData, selectedPartUploadData)
+        self.uploadForm.loadPartData(selectedPartData)
         self.uploadForm.dataSubmitted.connect(self.refreshTreeView)
         self.uploadForm.show()
         
@@ -634,30 +630,31 @@ class uploadDataForm(QWidget):
             self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
             
     def submitData(self):
-        upload_date_value = datetime.strftime(date.today(), '%m/%d/%Y')
-        upload_date = datetime.strptime(upload_date_value, '%m/%d/%Y')
-        due_date = upload_date + timedelta(days=90)
-        due_date_str = due_date.strftime('%m/%d/%Y')
-        updated_part_data = {
-            "uploadDate": upload_date_value,
-            "dueDate": due_date_str,
-        }
-        for row in range(self.dataTable.rowCount()):
-            upload_data = {
-                "partNumber": self.partNumber.text(),
-                "kpcNum": self.dataTable.item(row, 0).text(),
-                "serialNumber": self.serialNumberInput.text(),
-                "measurement": self.dataTable.item(row, 2).text(),
-                "uploadDate": upload_date_value,
-            }
+        # upload_date_value = datetime.strftime(date.today(), '%m/%d/%Y')
+        # upload_date = datetime.strptime(upload_date_value, '%m/%d/%Y')
+        #due_date = upload_date + timedelta(days=90)
+        #due_date_str = due_date.strftime('%m/%d/%Y')
+        #updated_part_data = {
+        #    "uploadDate": upload_date_value,
+        #    "dueDate": due_date_str,
+        #}
+       # for row in range(self.dataTable.rowCount()):
+        #    upload_data = {
+        #        "partNumber": self.partNumber.text(),
+        #        "kpcNum": self.dataTable.item(row, 0).text(),
+        #        "serialNumber": self.serialNumberInput.text(),
+        #        "measurement": self.dataTable.item(row, 2).text(),
+         #       "uploadDate": upload_date_value,
+          #  }
             
-        def on_submit_success(is_success):
-            if is_success:
-                self.dataSubmitted.emit()
-        database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
-        database.add_measurement(upload_data)
+        #def on_submit_success(is_success):
+            #if is_success:
+                #self.dataSubmitted.emit()
+        #database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
+        #database.add_measurement(upload_data)
             
-        self.close()
+        #self.close()
+        self.calculateAndUpdateCpk(self.partId)
     
     def loadPartData(self, selectedPartData):
         self.partNumber.setText(selectedPartData['partNumber'])
@@ -668,7 +665,30 @@ class uploadDataForm(QWidget):
         
         for feature in selectedPartData['features']:
             self.addFeatureToTable(feature)
-    
+            
+    def calculateAndUpdateCpk(self, partId):
+        part_data = database.get_part_by_id(partId)
+        measurement_data = database.get_measurements_by_id(partId)
+        
+        tolerances = {feature['kpcNum']: parse_tolerance(feature['tol']) for feature in part_data['features']}
+        measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
+        for entry in measurement_data:
+            for measurement in entry['measurements']:
+                kpcNum = measurement['kpcNum']
+                if kpcNum in measurements_by_kpc:
+                    measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
+                    
+        cpk_values = {}
+        for kpc, data in measurements_by_kpc.items():
+            usl, lsl = tolerances[kpc]
+            if usl is not None and lsl is not None:
+                cpk = calculate_cpk(data, usl, lsl)
+                cpk_values[kpc] = cpk
+                
+                
+        formatted_cpk_values = {kpc: round(abs(cpk), 3) for kpc, cpk in cpk_values.items()}
+        database.save_cpk_values(partId, formatted_cpk_values)
+        
     def closeWindow(self):
         self.close()
         
@@ -855,8 +875,20 @@ def passMismatch():
     dlg.setText('Passwords do not match')
     dlg.exec()
     
-def parse_tolerance():
-    partData = database.
+def parse_tolerance(tolerance):
+    match = re.match(r'DIA (\d+(\.\d+)?)-(\d+(\.\d+)?)', tolerance)
+    if match:
+        return float(match.group(1)), float(match.group(3))
+    return None, None
+        
+def calculate_cpk(data, usl, lsl):
+    if not data or np.std(data, ddof=1) ==0:
+        return None
+    sigma = np.std(data, ddof=1)
+    mean = np.mean(data)
+    cpk_upper = (usl - mean) / (3 * sigma)
+    cpk_lower = (mean - lsl) / (3 * sigma)
+    return min(cpk_upper, cpk_lower)
     
 app = QApplication(sys.argv)
 window = loginWindow()

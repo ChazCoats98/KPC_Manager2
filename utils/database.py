@@ -64,6 +64,20 @@ def check_for_part(part_number):
     count = parts.count_documents({"partNumber": part_number})
     return count > 0
     
+def save_cpk_values(partId, cpk_values):
+    part_doc = parts.find_one({'partNumber': partId})
+    if not part_doc:
+        print(f'No part found with part number {partId}')
+        return
+    for feature in part_doc['features']:
+        kpc_num = feature['kpcNum']
+        if kpc_num in cpk_values:
+            parts.update_one(
+                {'partNumber': partId, 'features.kpcNum': kpc_num},
+                {'$set': {'features.$.cpk': cpk_values[kpc_num]}}
+            )
+    print(f'CPK values updated for part number {partId}')
+    
 def add_measurement(upload_data):
     try:
         result = measurements.insert_one(upload_data)
