@@ -200,10 +200,6 @@ class partForm(QWidget):
         except ValueError:
             QMessageBox.warning(self, "Error", "Upload date must be in MM/DD/YYYY Format.")
             return
-        
-        if database.check_for_part(self.partInput.text()):
-            QMessageBox.warning(self, "Error", "Part already exists in database.")
-            return
             
         due_date = upload_date + timedelta(days=90)
         due_date_str = due_date.strftime('%m/%d/%Y')
@@ -229,7 +225,11 @@ class partForm(QWidget):
             if is_success:
                 self.partSubmitted.emit()
         if self.mode == "add":
-            database.submit_new_part(new_part_data, callback=on_submit_success)
+            if database.check_for_part(self.partInput.text()):
+                QMessageBox.warning(self, "Error", "Part already exists in database.")
+                return
+            else: 
+                database.submit_new_part(new_part_data, callback=on_submit_success)
         elif self.mode == "edit":
             database.update_part_by_id(self.partId, new_part_data, callback=on_submit_success)
             
@@ -430,7 +430,7 @@ class PartFeaturesModel(QAbstractItemModel):
             return len(part.get('features', []))
         
     def columnCount(self, parent=QModelIndex()):
-        return 5
+        return 6
     
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid():
@@ -448,6 +448,8 @@ class PartFeaturesModel(QAbstractItemModel):
                     return f"Tolerance Value: {item['tol']}"
                 elif index.column() == 4:
                     return f"Engine: {item['engine']}"
+                elif index.column() == 5:
+                    return f"CPK: {item.get('cpk', 'N/A')}"
             else: 
                 if index.column() == 0:
                     return item.get('partNumber', '')
@@ -879,16 +881,31 @@ def parse_tolerance(tolerance):
     match = re.match(r'DIA (\d+(\.\d+)?)-(\d+(\.\d+)?)', tolerance)
     if match:
         return float(match.group(1)), float(match.group(3))
-    return None, None
         
+    min_match = re.search(r'(\d+(\.\d+)?) Min Thickness', tolerance)
+    if min_match:
+        return None, float(min_match.group(1))
+    true_pos_match = re.search(r'True Position (.*)', tolerance)
+    if true_pos_match:
+        pass
+    
+    return None, None 
+
 def calculate_cpk(data, usl, lsl):
     if not data or np.std(data, ddof=1) ==0:
         return None
     sigma = np.std(data, ddof=1)
     mean = np.mean(data)
-    cpk_upper = (usl - mean) / (3 * sigma)
-    cpk_lower = (mean - lsl) / (3 * sigma)
-    return min(cpk_upper, cpk_lower)
+    if usl is not None and lsl is not None:
+        cpk_upper = (usl - mean) / (3 * sigma)
+        cpk_lower = (mean - lsl) / (3 * sigma)
+        return min(cpk_upper, cpk_lower)
+    elif usl is not None:
+        return (usl - mean) / (3 * sigma)
+    elif lsl is not None:
+        return (mean - lsl) / (3 * sigma)
+    else: 
+        return None
     
 app = QApplication(sys.argv)
 window = loginWindow()
