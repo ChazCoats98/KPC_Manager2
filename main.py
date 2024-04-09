@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import (
     QTreeView,
     QTreeWidget,
     QTreeWidgetItem,
+    QFileDialog
 )
 from utils import database
 from openpyxl import load_workbook
@@ -606,17 +607,23 @@ class uploadDataForm(QWidget):
         layout.addWidget(serialNumberLabel, 2, 0)
         layout.addWidget(self.serialNumberInput, 2, 1, 1, 2)
         
+        runNumberLabel = QLabel('Run Number:')
+        self.runNumberInput = QLineEdit()
+        self.runNumberInput.setPlaceholderText('Enter Run Number')
+        layout.addWidget(runNumberLabel, 2, 4)
+        layout.addWidget(self.runNumberInput, 2, 5, 1, 2)
+        
         machineLabel = QLabel('Machine:')
         self.machineComboBox = QComboBox()
         self.machineComboBox.addItems([ '', 'CMM - Zeiss Accura'])
-        layout.addWidget(machineLabel, 2, 3)
-        layout.addWidget(self.machineComboBox, 2, 4)
+        layout.addWidget(machineLabel, 3, 0)
+        layout.addWidget(self.machineComboBox, 3, 1)
         
         lotSizeLabel = QLabel('Lot Size:')
         self.lotSizeComboBox = QComboBox()
         self.lotSizeComboBox.addItems(['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25'])
-        layout.addWidget(lotSizeLabel, 2, 5)
-        layout.addWidget(self.lotSizeComboBox, 2, 6)
+        layout.addWidget(lotSizeLabel, 3, 4)
+        layout.addWidget(self.lotSizeComboBox, 3, 5, 1, 1)
         
         addPartButton = QPushButton('Save Data')
         addPartButton.setStyleSheet("background-color: #3ADC73")
@@ -629,7 +636,7 @@ class uploadDataForm(QWidget):
         layout.addWidget(cancelButton, 7, 2, 1, 3)
         
         self.dataTable = QTableWidget()
-        self.dataTable.setColumnCount(3)
+        self.dataTable.setColumnCount(4)
         self.dataTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.dataTable.columnCount()):
             self.dataTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
@@ -642,15 +649,20 @@ class uploadDataForm(QWidget):
     def addFeatureToTable(self, feature_data):
         row_position = self.dataTable.rowCount()
         self.dataTable.insertRow(row_position)
-        for i, key in enumerate(['kpcNum', 'tol']):
+        for i, key in enumerate(['feature','kpcNum', 'tol']):
             self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
             
     def submitData(self):
         part_number = self.partNumber.text()
+        machine = self.machineComboBox.currentText()
+        run_number = self.runNumberInput.text()
+        lot_size = self.lotSizeComboBox.currentText()
+        start_row = 2
         template_path = './utils/Templates/Measurement_Import_template.xlsx'
         upload_date_value = datetime.strftime(date.today(), '%m/%d/%Y')
-        new_file_path = f'./Results/{part_number}_data_upload_{upload_date_value}.xlsx'
-        # upload_date = datetime.strptime(upload_date_value, '%m/%d/%Y')
+        upload_date_file_path = datetime.strftime(date.today(), '%m-%d-%Y')
+        upload_date = datetime.strptime(upload_date_value, '%m/%d/%Y')
+        new_file_path = f'./Results/{part_number}_data_upload_{upload_date_file_path}.xlsx'
         #due_date = upload_date + timedelta(days=90)
         #due_date_str = due_date.strftime('%m/%d/%Y')
         #updated_part_data = {
@@ -661,16 +673,37 @@ class uploadDataForm(QWidget):
         shutil.copy(template_path,  new_file_path)
         
         workbook = load_workbook(filename=new_file_path)
+        sheet = workbook.active
         
-       # for row in range(self.dataTable.rowCount()):
-        #    upload_data = {
-        #        "partNumber": self.partNumber.text(),
-        #        "kpcNum": self.dataTable.item(row, 0).text(),
-        #        "serialNumber": self.serialNumberInput.text(),
-        #        "measurement": self.dataTable.item(row, 2).text(),
-         #       "uploadDate": upload_date_value,
-          #  }
-          
+        for row in range(self.dataTable.rowCount()):
+            target_row = start_row + row
+            feature_number = self.dataTable.item(row, 0).text()
+            measurement = self.dataTable.item(row, 3).text()
+            
+            if part_number:
+                sheet.cell(row=target_row, column=1).value = part_number
+            if feature_number:
+                sheet.cell(row=target_row, column=2).value = feature_number
+            if machine:
+                sheet.cell(row=target_row, column=3).value = machine
+            if run_number:
+                sheet.cell(row=target_row, column=4).value = run_number
+            if lot_size:
+                sheet.cell(row=target_row, column=5).value = lot_size
+            if measurement:
+                sheet.cell(row=target_row, column=6).value = measurement
+            
+            
+        
+            upload_data = {
+                "partNumber": self.partNumber.text(),
+                "kpcNum": self.dataTable.item(row, 0).text(),
+                "serialNumber": self.serialNumberInput.text(),
+                "measurement": self.dataTable.item(row, 2).text(),
+                "uploadDate": upload_date_value,
+            }
+        
+        workbook.save(filename=new_file_path)
         
             
         #def on_submit_success(is_success):
@@ -688,7 +721,7 @@ class uploadDataForm(QWidget):
         self.uploadDate.setText(selectedPartData['uploadDate'])
         
         self.dataTable.setRowCount(0)
-        self.dataTable.setHorizontalHeaderLabels(['KPC Number', 'Blueprint Dimension', 'Measurement'])
+        self.dataTable.setHorizontalHeaderLabels(['Feature Number', 'KPC Number', 'Blueprint Dimension', 'Measurement'])
         
         for feature in selectedPartData['features']:
             self.addFeatureToTable(feature)
@@ -712,9 +745,9 @@ class uploadDataForm(QWidget):
                 cpk = calculate_cpk(data, usl, lsl)
                 cpk_values[kpc] = cpk
                 
-                
-        formatted_cpk_values = {kpc: round(abs(cpk), 3) for kpc, cpk in cpk_values.items()}
-        database.save_cpk_values(partId, formatted_cpk_values)
+        if cpk_values:
+            formatted_cpk_values = {kpc: round(abs(cpk), 3) for kpc, cpk in cpk_values.items()}
+            database.save_cpk_values(partId, formatted_cpk_values)
         
     def closeWindow(self):
         self.close()
