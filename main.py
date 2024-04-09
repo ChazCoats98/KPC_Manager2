@@ -1,12 +1,13 @@
 import sys
 import numpy as np
+import shutil
 import hashlib
 import re
 from datetime import datetime, timedelta, date
 import time
 import typing
 from pymongo import MongoClient
-from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView, QFileSystemModel
+from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView, QFileSystemModel, QComboBox
 from PyQt5 import QtCore
 from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractItemModel, Qt, pyqtSignal, QSortFilterProxyModel
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
@@ -20,6 +21,7 @@ from PyQt5.QtWidgets import (
     QTreeWidgetItem,
 )
 from utils import database
+from openpyxl import load_workbook
 
 emailRegex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
 passwordRegex = r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$'
@@ -604,15 +606,27 @@ class uploadDataForm(QWidget):
         layout.addWidget(serialNumberLabel, 2, 0)
         layout.addWidget(self.serialNumberInput, 2, 1, 1, 2)
         
+        machineLabel = QLabel('Machine:')
+        self.machineComboBox = QComboBox()
+        self.machineComboBox.addItems([ '', 'CMM - Zeiss Accura'])
+        layout.addWidget(machineLabel, 2, 3)
+        layout.addWidget(self.machineComboBox, 2, 4)
+        
+        lotSizeLabel = QLabel('Lot Size:')
+        self.lotSizeComboBox = QComboBox()
+        self.lotSizeComboBox.addItems(['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25'])
+        layout.addWidget(lotSizeLabel, 2, 5)
+        layout.addWidget(self.lotSizeComboBox, 2, 6)
+        
         addPartButton = QPushButton('Save Data')
         addPartButton.setStyleSheet("background-color: #3ADC73")
         addPartButton.clicked.connect(self.submitData)
-        layout.addWidget(addPartButton, 6, 0, 1, 6)
+        layout.addWidget(addPartButton, 6, 2, 1, 3)
         
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
-        layout.addWidget(cancelButton, 7, 0, 1, 6)
+        layout.addWidget(cancelButton, 7, 2, 1, 3)
         
         self.dataTable = QTableWidget()
         self.dataTable.setColumnCount(3)
@@ -620,7 +634,7 @@ class uploadDataForm(QWidget):
         for column in range(self.dataTable.columnCount()):
             self.dataTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
             
-        layout.addWidget(self.dataTable, 4, 0, 1, 6)
+        layout.addWidget(self.dataTable, 4, 0, 1, 7)
         
         
         self.setLayout(layout)
@@ -632,7 +646,10 @@ class uploadDataForm(QWidget):
             self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
             
     def submitData(self):
-        # upload_date_value = datetime.strftime(date.today(), '%m/%d/%Y')
+        part_number = self.partNumber.text()
+        template_path = './utils/Templates/Measurement_Import_template.xlsx'
+        upload_date_value = datetime.strftime(date.today(), '%m/%d/%Y')
+        new_file_path = f'./Results/{part_number}_data_upload_{upload_date_value}.xlsx'
         # upload_date = datetime.strptime(upload_date_value, '%m/%d/%Y')
         #due_date = upload_date + timedelta(days=90)
         #due_date_str = due_date.strftime('%m/%d/%Y')
@@ -640,6 +657,11 @@ class uploadDataForm(QWidget):
         #    "uploadDate": upload_date_value,
         #    "dueDate": due_date_str,
         #}
+        
+        shutil.copy(template_path,  new_file_path)
+        
+        workbook = load_workbook(filename=new_file_path)
+        
        # for row in range(self.dataTable.rowCount()):
         #    upload_data = {
         #        "partNumber": self.partNumber.text(),
@@ -648,6 +670,8 @@ class uploadDataForm(QWidget):
         #        "measurement": self.dataTable.item(row, 2).text(),
          #       "uploadDate": upload_date_value,
           #  }
+          
+        
             
         #def on_submit_success(is_success):
             #if is_success:
@@ -664,6 +688,7 @@ class uploadDataForm(QWidget):
         self.uploadDate.setText(selectedPartData['uploadDate'])
         
         self.dataTable.setRowCount(0)
+        self.dataTable.setHorizontalHeaderLabels(['KPC Number', 'Blueprint Dimension', 'Measurement'])
         
         for feature in selectedPartData['features']:
             self.addFeatureToTable(feature)
