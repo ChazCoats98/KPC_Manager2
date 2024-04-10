@@ -9,7 +9,7 @@ import typing
 from pymongo import MongoClient
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView, QFileSystemModel, QComboBox
 from PyQt5 import QtCore
-from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractItemModel, Qt, pyqtSignal, QSortFilterProxyModel
+from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractItemModel, Qt, pyqtSignal, QSortFilterProxyModel, QDate
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import (
     QApplication,
@@ -338,6 +338,7 @@ class dashboard(QMainWindow):
         
         selectedPartData = database.get_part_by_id(part_id)
         selectedPartUploadData = database.get_measurements_by_id(part_id)
+        print(selectedPartUploadData)
         if not selectedPartData or selectedPartUploadData is None:
             QMessageBox.warning(self, "Error", "Could not find part data.")
             return
@@ -663,12 +664,12 @@ class uploadDataForm(QWidget):
         upload_date_file_path = datetime.strftime(date.today(), '%m-%d-%Y')
         upload_date = datetime.strptime(upload_date_value, '%m/%d/%Y')
         new_file_path = f'./Results/{part_number}_data_upload_{upload_date_file_path}.xlsx'
-        #due_date = upload_date + timedelta(days=90)
-        #due_date_str = due_date.strftime('%m/%d/%Y')
-        #updated_part_data = {
-        #    "uploadDate": upload_date_value,
-        #    "dueDate": due_date_str,
-        #}
+        due_date = upload_date + timedelta(days=90)
+        due_date_str = due_date.strftime('%m/%d/%Y')
+        updated_part_data = {
+            "uploadDate": upload_date_value,
+            "dueDate": due_date_str,
+        }
         
         shutil.copy(template_path,  new_file_path)
         
@@ -695,24 +696,48 @@ class uploadDataForm(QWidget):
             
             
         
-            upload_data = {
-                "partNumber": self.partNumber.text(),
-                "kpcNum": self.dataTable.item(row, 0).text(),
-                "serialNumber": self.serialNumberInput.text(),
-                "measurement": self.dataTable.item(row, 2).text(),
-                "uploadDate": upload_date_value,
-            }
+        upload_data = {
+            "partNumber": self.partNumber.text(),
+            "serialNumber": self.serialNumberInput.text(),
+            "uploadDate": upload_date_value,
+            "measurements": []
+        }
+            
+        for row in range(self.dataTable.rowCount()):
+            kpcNum = self.dataTable.item(row, 1).text()
+            measurement_upload = self.dataTable.item(row, 3).text()
+            
+            upload_data["measurements"].append({
+                "kpcNum": kpcNum,
+                "measurement": measurement_upload
+            })
+        
+        print(upload_data)
         
         workbook.save(filename=new_file_path)
         
+        options = QFileDialog.Options()
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Excel File",
+            "",
+            "Excel files (*.xlsx)::All Files (*)",
+            options=options)
+        
+        if filename:
+            if not filename.endswith('.xlsx'):
+                filename += '.xlsx'
+            shutil.move(new_file_path, filename)
+        
+        
             
-        #def on_submit_success(is_success):
-            #if is_success:
-                #self.dataSubmitted.emit()
-        #database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
-        #database.add_measurement(upload_data)
+        def on_submit_success(is_success):
+            if is_success:
+                self.dataSubmitted.emit()
+        database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
+        database.add_measurement(upload_data)
             
-        #self.close()
+        self.close()
         self.calculateAndUpdateCpk(self.partId)
     
     def loadPartData(self, selectedPartData):
@@ -746,7 +771,7 @@ class uploadDataForm(QWidget):
                 cpk_values[kpc] = cpk
                 
         if cpk_values:
-            formatted_cpk_values = {kpc: round(abs(cpk), 3) for kpc, cpk in cpk_values.items()}
+            formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
             database.save_cpk_values(partId, formatted_cpk_values)
         
     def closeWindow(self):
@@ -782,11 +807,13 @@ class historicalData(QWidget):
         layout.addWidget(cancelButton, 7, 0, 1, 6)
         
         self.model = QStandardItemModel()
+        self.proxyModel = DateSortProxyModel(dateColumnIndex=0, parent=self)
+        self.proxyModel.setSourceModel(self.model)
         self.treeView= QTreeView()
         self.treeView.header().setStretchLastSection(False)
         self.treeView.header().setSectionResizeMode(QHeaderView.Stretch)
         self.model.setHorizontalHeaderLabels(['Upload Date', 'Part Number', 'Serial Number', 'KPC Number', 'Measurement'])
-        self.treeView.setModel(self.model)
+        self.treeView.setModel(self.proxyModel)
         self.treeView.setSortingEnabled(True)
         
             
@@ -809,14 +836,17 @@ class historicalData(QWidget):
             QMessageBox.warning(self, "Error", "No measurement selected.")
             return
         
-        uploadDate = self.model.itemFromIndex(index.sibling(index.row(), 0)).text()
-        serialNumber = self.model.itemFromIndex(index.sibling(index.row(), 1)).text()
-        partNumber = self.partNumber.text()
+        sourceIndex = self.proxyModel.mapToSource(index)
+        uploadDate = self.model.itemFromIndex(sourceIndex.sibling(sourceIndex.row(), 0)).text()
+        serialNumber = self.model.itemFromIndex(sourceIndex.sibling(sourceIndex.row(), 1)).text()
         
-        result = database.delete_measurement_by_id(self, partNumber, serialNumber, uploadDate)
-        if result > 0:
+        if uploadDate and serialNumber:
+            partNumber = self.partNumber.text()
+            result = database.delete_measurement_by_id(self, partNumber, serialNumber, uploadDate)
+            if result > 0:
                 self.refreshTreeView()
-        
+        else: 
+            QMessageBox.warning(self, "Error", "Could not retrieve data.")
     
     def loadPartData(self, selectedPartData, selectedPartUploadData):
         self.partNumber.setText(selectedPartData['partNumber'])
@@ -870,6 +900,23 @@ class historicalData(QWidget):
     
     def closeWindow(self):
         self.close()
+        
+class DateSortProxyModel(QSortFilterProxyModel):
+    def __init__(self, dateColumnIndex, *args, **kwargs):
+        super().__init__( *args, **kwargs)
+        self.dateColumnIndex = dateColumnIndex
+    def lessThan(self, left, right):
+        if left.column() == self.dateColumnIndex and right.column() == self.dateColumnIndex:
+            leftData = self.sourceModel().data(left)
+            rightData = self.sourceModel().data(right)
+        
+            leftDate = QDate.fromString(leftData, 'MM/dd/yyyy')
+            rightDate = QDate.fromString(rightData, 'MM/dd/yyyy')
+        
+            
+            return leftDate < rightDate
+        else:
+            return super(DateSortProxyModel, self).lessThan(left, right)
         
 def renderDashboard():
     global d
@@ -950,10 +997,14 @@ def parse_tolerance(tolerance):
     return None, None 
 
 def calculate_cpk(data, usl, lsl):
-    if not data or np.std(data, ddof=1) ==0:
+    if not data or len(data) < 2 or np.isnan(data).any() or np.isinf(data).any():
         return None
     sigma = np.std(data, ddof=1)
     mean = np.mean(data)
+    
+    if sigma == 0:
+        return None
+    
     if usl is not None and lsl is not None:
         cpk_upper = (usl - mean) / (3 * sigma)
         cpk_lower = (mean - lsl) / (3 * sigma)

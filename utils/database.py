@@ -90,7 +90,6 @@ def add_measurement(upload_data):
     
 def get_measurements_by_id(part_id):
     data = measurements.find({"partNumber":part_id})
-    print(list(data))
     return (list(data))
 
 def delete_duplicate_measurements():
