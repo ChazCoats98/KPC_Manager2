@@ -460,7 +460,10 @@ class PartFeaturesModel(QAbstractItemModel):
                 elif index.column() == 1:
                     return item.get('rev', '')
                 elif index.column() == 2:
-                    return item.get('uploadDate', '')
+                    date_string = item.get('uploadDate')
+                    if date_string:
+                        formatted_date = format_date(date_string)
+                    return formatted_date
                 elif index.column() == 3:
                     return item.get('dueDate', '')
                 elif index.column() == 4:
@@ -637,7 +640,7 @@ class uploadDataForm(QWidget):
         layout.addWidget(cancelButton, 7, 2, 1, 3)
         
         self.dataTable = QTableWidget()
-        self.dataTable.setColumnCount(4)
+        self.dataTable.setColumnCount(5)
         self.dataTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.dataTable.columnCount()):
             self.dataTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
@@ -650,11 +653,12 @@ class uploadDataForm(QWidget):
     def addFeatureToTable(self, feature_data):
         row_position = self.dataTable.rowCount()
         self.dataTable.insertRow(row_position)
-        for i, key in enumerate(['feature','kpcNum', 'tol']):
+        for i, key in enumerate(['feature','kpcNum', 'OpNumber', 'tol']):
             self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
             
     def submitData(self):
         part_number = self.partNumber.text()
+        serial_number = self.serialNumberInput.text()
         machine = self.machineComboBox.currentText()
         run_number = self.runNumberInput.text()
         lot_size = self.lotSizeComboBox.currentText()
@@ -679,7 +683,7 @@ class uploadDataForm(QWidget):
         for row in range(self.dataTable.rowCount()):
             target_row = start_row + row
             feature_number = self.dataTable.item(row, 0).text()
-            measurement = self.dataTable.item(row, 3).text()
+            measurement = self.dataTable.item(row, 4).text()
             
             if part_number:
                 sheet.cell(row=target_row, column=1).value = part_number
@@ -693,49 +697,59 @@ class uploadDataForm(QWidget):
                 sheet.cell(row=target_row, column=5).value = lot_size
             if measurement:
                 sheet.cell(row=target_row, column=6).value = measurement
+            if serial_number:
+                sheet.cell(row=target_row, column=8).value = serial_number
             
             
-        
-        upload_data = {
-            "partNumber": self.partNumber.text(),
-            "serialNumber": self.serialNumberInput.text(),
-            "uploadDate": upload_date_value,
-            "measurements": []
-        }
-            
-        for row in range(self.dataTable.rowCount()):
-            kpcNum = self.dataTable.item(row, 1).text()
-            measurement_upload = self.dataTable.item(row, 3).text()
-            
-            upload_data["measurements"].append({
-                "kpcNum": kpcNum,
-                "measurement": measurement_upload
-            })
-        
-        print(upload_data)
         
         workbook.save(filename=new_file_path)
-        
-        options = QFileDialog.Options()
-        filename, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Excel File",
-            "",
-            "Excel files (*.xlsx)::All Files (*)",
-            options=options)
-        
-        if filename:
-            if not filename.endswith('.xlsx'):
-                filename += '.xlsx'
-            shutil.move(new_file_path, filename)
-        
-        
+        try: 
+            fileName, ok = QFileDialog.getSaveFileName(
+                self,
+                "Save Excel File",
+                "",
+                "Excel files (*.xlsx)")
             
-        def on_submit_success(is_success):
-            if is_success:
-                self.dataSubmitted.emit()
-        database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
-        database.add_measurement(upload_data)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
+        
+        if not fileName:
+            QMessageBox.information(self, "Save Canceled", "The save operation was cancelled")
+            return
+        
+        if fileName:
+            if not fileName.endswith('.xlsx'):
+                fileName += '.xlsx'
+            try: 
+                shutil.move(new_file_path, fileName)
+                
+                upload_data = {
+                    "partNumber": self.partNumber.text(),
+                    "serialNumber": self.serialNumberInput.text(),
+                    "uploadDate": upload_date_value,
+                    "measurements": []
+                }
+            
+                for row in range(self.dataTable.rowCount()):
+                    kpcNum = self.dataTable.item(row, 1).text()
+                    measurement_upload = self.dataTable.item(row, 3).text()
+            
+                    upload_data["measurements"].append({
+                        "kpcNum": kpcNum,
+                        "measurement": measurement_upload
+                    })
+                    
+                def on_submit_success(is_success):
+                    if is_success:
+                        self.dataSubmitted.emit()
+            
+                database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
+                database.add_measurement(upload_data)
+        
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"An error occurred while saving the file: {e}")
+                
+            
             
         self.close()
         self.calculateAndUpdateCpk(self.partId)
@@ -746,7 +760,7 @@ class uploadDataForm(QWidget):
         self.uploadDate.setText(selectedPartData['uploadDate'])
         
         self.dataTable.setRowCount(0)
-        self.dataTable.setHorizontalHeaderLabels(['Feature Number', 'KPC Number', 'Blueprint Dimension', 'Measurement'])
+        self.dataTable.setHorizontalHeaderLabels(['Feature Number', 'KPC Number', 'Op Number', 'Blueprint Dimension', 'Measurement'])
         
         for feature in selectedPartData['features']:
             self.addFeatureToTable(feature)
@@ -756,19 +770,22 @@ class uploadDataForm(QWidget):
         measurement_data = database.get_measurements_by_id(partId)
         
         tolerances = {feature['kpcNum']: parse_tolerance(feature['tol']) for feature in part_data['features']}
+        print(tolerances)
         measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
         for entry in measurement_data:
             for measurement in entry['measurements']:
                 kpcNum = measurement['kpcNum']
                 if kpcNum in measurements_by_kpc:
                     measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
-                    
+        print(measurements_by_kpc)            
         cpk_values = {}
         for kpc, data in measurements_by_kpc.items():
             usl, lsl = tolerances[kpc]
+            print(f'usl: {usl} lsl: {lsl}')
             if usl is not None and lsl is not None:
                 cpk = calculate_cpk(data, usl, lsl)
                 cpk_values[kpc] = cpk
+        print(cpk_values)
                 
         if cpk_values:
             formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
@@ -858,10 +875,11 @@ class historicalData(QWidget):
         
         for uploadData in selectedPartUploadData:
             uploadDate = uploadData['uploadDate']
+            formatted_date = format_date(uploadDate)
             serialNumber = uploadData['serialNumber']
             
             parentRow = [
-                QStandardItem(uploadDate),
+                QStandardItem(formatted_date),
                 QStandardItem(serialNumber),
                 QStandardItem(""),
                 QStandardItem("")
@@ -882,6 +900,7 @@ class historicalData(QWidget):
                         QStandardItem(meas)
                     ]
                     parentRow[0].appendRow(childRow)
+                    
                     
     def refreshTreeView(self):
         part_id = self.partId
@@ -957,6 +976,21 @@ def register(email, pwd, confPwd):
         
     else:
         invalid()
+        
+def format_date(date_str):
+    parts = date_str.split('/')
+    if len(parts) == 3:
+        month, day, year = parts
+        if len(year) == 2:
+            date_obj = datetime.strptime(date_str, '%m/%d/%y')
+        elif len(year) == 4:
+            date_obj = datetime.strptime(date_str, '%m/%d/%Y')
+        else:
+            raise ValueError('Invalid date format')
+            
+        return date_obj.strftime('%m/%d/%Y')
+    else: 
+        raise ValueError('Invalid date format')
 
 def loginFailed():
     dlg = QMessageBox()
@@ -983,20 +1017,23 @@ def passMismatch():
     dlg.exec()
     
 def parse_tolerance(tolerance):
-    match = re.match(r'DIA (\d+(\.\d+)?)-(\d+(\.\d+)?)', tolerance)
-    if match:
-        return float(match.group(1)), float(match.group(3))
-        
-    min_match = re.search(r'(\d+(\.\d+)?) Min Thickness', tolerance)
-    if min_match:
-        return None, float(min_match.group(1))
-    true_pos_match = re.search(r'True Position (.*)', tolerance)
-    if true_pos_match:
-        pass
+    dia_pattern = re.compile(r'DIA (\d+\.\d+)-(\d+\.\d+)')
+    specific_tolerance_pattern = re.compile(r'([A-Za-z ]+) (\.\d+)')
     
-    return None, None 
+    dia_match = dia_pattern.search(tolerance)
+    specific_tolerance_match = specific_tolerance_pattern.search(tolerance)
+    
+    if dia_match:
+        min_val, max_val = map(float, dia_match.groups())
+        return ( max_val, min_val)
+        
+    elif specific_tolerance_match:
+        tolerance_type, value = specific_tolerance_match.groups()
+        return (float(value), 0)
+    else: 
+        return None, None 
 
-def calculate_cpk(data, usl, lsl):
+def calculate_cpk(data, usl=None, lsl=None, target=None):
     if not data or len(data) < 2 or np.isnan(data).any() or np.isinf(data).any():
         return None
     sigma = np.std(data, ddof=1)
@@ -1005,16 +1042,25 @@ def calculate_cpk(data, usl, lsl):
     if sigma == 0:
         return None
     
-    if usl is not None and lsl is not None:
+    cpk = None
+    if usl is None and lsl is not None:
+        cpk = (mean - lsl) / (3 * sigma)
+        return cpk
+    elif usl is not None and lsl is not None:
         cpk_upper = (usl - mean) / (3 * sigma)
         cpk_lower = (mean - lsl) / (3 * sigma)
-        return min(cpk_upper, cpk_lower)
+        cpk = min(cpk_upper, cpk_lower)
     elif usl is not None:
-        return (usl - mean) / (3 * sigma)
+        cpk = (usl - mean) / (3 * sigma)
     elif lsl is not None:
-        return (mean - lsl) / (3 * sigma)
-    else: 
-        return None
+        cpk = (mean - lsl) / (3 * sigma)
+    
+    if target is not None:
+        if usl is not None:
+            cpk = (usl - target) / (3 * sigma)
+        elif lsl is not None:
+            cpk = (target - lsl) / (3 * sigma)
+    return cpk
     
 app = QApplication(sys.argv)
 window = loginWindow()
