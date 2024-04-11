@@ -173,7 +173,7 @@ class partForm(QWidget):
         
         self.featureTable = QTableWidget()
         self.featureTable.setColumnCount(5)
-        self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Tolerance", "Engine"])
+        self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Operation Number", "Tolerance", "Engine"])
         self.featureTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.featureTable.columnCount()):
             self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
@@ -189,7 +189,7 @@ class partForm(QWidget):
     def addFeatureToTable(self, feature_data):
         row_position = self.featureTable.rowCount()
         self.featureTable.insertRow(row_position)
-        for i, key in enumerate(['feature', 'designation', 'kpcNum', 'tol', 'engine']):
+        for i, key in enumerate(['feature', 'designation', 'kpcNum', 'opNum', 'tol', 'engine']):
             self.featureTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
             
     def submitPart(self):
@@ -219,8 +219,9 @@ class partForm(QWidget):
                 "feature": self.featureTable.item(row, 0).text(),
                 "designation": self.featureTable.item(row, 1).text(),
                 "kpcNum": self.featureTable.item(row, 2).text(),
-                "tol": self.featureTable.item(row, 3).text(),
-                "engine": self.featureTable.item(row, 4).text(),
+                "opNum": self.featureTable.item(row, 3).text(),
+                "tol": self.featureTable.item(row, 4).text(),
+                "engine": self.featureTable.item(row, 5).text(),
             }
             new_part_data["features"].append(feature)
             
@@ -527,25 +528,31 @@ class FeatureForm(QWidget):
         layout.addWidget(kpcLabel, 0, 1)
         layout.addWidget(self.kpcInput, 1, 1)
         
+        opNumLabel = QLabel('Op Number:')
+        self.opNumInput = QLineEdit()
+        self.opNumInput.setPlaceholderText('Enter KPC Designation')
+        layout.addWidget(opNumLabel, 0, 2)
+        layout.addWidget(self.opNumInput, 1, 2)
+        
         # upload date form
         kpcNumLabel = QLabel('KPC Number:')
         self.kpcNumInput = QLineEdit()
         self.kpcNumInput.setPlaceholderText('Enter KPC Number from Net-Inspect')
-        layout.addWidget(kpcNumLabel, 0, 2)
-        layout.addWidget(self.kpcNumInput, 1, 2)
+        layout.addWidget(kpcNumLabel, 0, 3)
+        layout.addWidget(self.kpcNumInput, 1, 3)
         
         # Notes form
         requirementLabel = QLabel('Requirement:')
         self.requirementInput = QLineEdit()
         self.requirementInput.setPlaceholderText('Enter Blueprint Requirement')
-        layout.addWidget(requirementLabel, 0, 3)
-        layout.addWidget(self.requirementInput, 1, 3)
+        layout.addWidget(requirementLabel, 0, 4)
+        layout.addWidget(self.requirementInput, 1, 4)
         
         engineLabel = QLabel('Engine:')
         self.engineInput = QLineEdit()
         self.engineInput.setPlaceholderText('Enter Part Engine Program')
-        layout.addWidget(engineLabel, 0, 4)
-        layout.addWidget(self.engineInput, 1, 4)
+        layout.addWidget(engineLabel, 0, 45)
+        layout.addWidget(self.engineInput, 1, 5)
         
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
@@ -565,6 +572,7 @@ class FeatureForm(QWidget):
         feature_data = {
             "feature": self.featureInput.text(),
             "designation": self.kpcInput.text(),
+            "opNum": self.opNumInput.text(),
             "kpcNum": self.kpcNumInput.text(),
             "tol": self.requirementInput.text(),
             "engine": self.engineInput.text(),
@@ -653,7 +661,7 @@ class uploadDataForm(QWidget):
     def addFeatureToTable(self, feature_data):
         row_position = self.dataTable.rowCount()
         self.dataTable.insertRow(row_position)
-        for i, key in enumerate(['feature','kpcNum', 'OpNumber', 'tol']):
+        for i, key in enumerate(['feature','kpcNum', 'tol']):
             self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
             
     def submitData(self):
@@ -673,6 +681,7 @@ class uploadDataForm(QWidget):
         updated_part_data = {
             "uploadDate": upload_date_value,
             "dueDate": due_date_str,
+            "features": []
         }
         
         shutil.copy(template_path,  new_file_path)
@@ -732,7 +741,13 @@ class uploadDataForm(QWidget):
             
                 for row in range(self.dataTable.rowCount()):
                     kpcNum = self.dataTable.item(row, 1).text()
-                    measurement_upload = self.dataTable.item(row, 3).text()
+                    opNum = self.dataTable.item(row, 3).text()
+                    measurement_upload = self.dataTable.item(row, 4).text()
+                    
+                    updated_part_data['features'].append({
+                        'kpcNum': kpcNum,
+                        'opNum': opNum
+                    })
             
                     upload_data["measurements"].append({
                         "kpcNum": kpcNum,
@@ -760,7 +775,7 @@ class uploadDataForm(QWidget):
         self.uploadDate.setText(selectedPartData['uploadDate'])
         
         self.dataTable.setRowCount(0)
-        self.dataTable.setHorizontalHeaderLabels(['Feature Number', 'KPC Number', 'Op Number', 'Blueprint Dimension', 'Measurement'])
+        self.dataTable.setHorizontalHeaderLabels(['Feature Number', 'KPC Number', 'Blueprint Dimension', 'Op Number', 'Measurement'])
         
         for feature in selectedPartData['features']:
             self.addFeatureToTable(feature)
