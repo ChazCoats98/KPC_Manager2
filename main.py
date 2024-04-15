@@ -9,7 +9,7 @@ import time
 import typing
 from pymongo import MongoClient
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView, QFileSystemModel, QComboBox
-from PyQt5 import QtCore
+from PyQt5 import QtGui
 from PyQt5.QtCore import QModelIndex, Qt, QDir, QAbstractItemModel, Qt, pyqtSignal, QSortFilterProxyModel, QDate
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import (
@@ -20,7 +20,8 @@ from PyQt5.QtWidgets import (
     QTreeView,
     QTreeWidget,
     QTreeWidgetItem,
-    QFileDialog
+    QFileDialog,
+    QCheckBox
 )
 from utils import database
 from openpyxl import load_workbook
@@ -157,20 +158,24 @@ class partForm(QWidget):
         layout.addWidget(notesLabel, 0, 3)
         layout.addWidget(self.notesInput, 1, 3)
         
+        #No current manufacturing flag
+        self.manufacturingCheck = QCheckBox(text="No Current Manufacturing")
+        layout.addWidget(self.manufacturingCheck, 1, 4)
+        
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
         addFeatureButton.clicked.connect(self.addFeature)
-        layout.addWidget(addFeatureButton, 5, 1, 1, 2)
+        layout.addWidget(addFeatureButton, 5, 1, 1, 3)
         
         addPartButton = QPushButton('Save Part')
         addPartButton.setStyleSheet("background-color: #3ADC73")
         addPartButton.clicked.connect(self.submitPart)
-        layout.addWidget(addPartButton, 6, 0, 1, 4)
+        layout.addWidget(addPartButton, 6, 0, 1, 5)
         
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
-        layout.addWidget(cancelButton, 7, 0, 1, 4)
+        layout.addWidget(cancelButton, 7, 0, 1, 5)
         
         self.featureTable = QTableWidget()
         self.featureTable.setColumnCount(6)
@@ -179,7 +184,7 @@ class partForm(QWidget):
         for column in range(self.featureTable.columnCount()):
             self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
             
-        layout.addWidget(self.featureTable, 4, 0, 1, 4)
+        layout.addWidget(self.featureTable, 4, 0, 1, 5)
         
         
         self.setLayout(layout)
@@ -216,6 +221,7 @@ class partForm(QWidget):
             "uploadDate": self.udInput.text(),
             "dueDate": due_date_str,
             "notes": self.notesInput.text(),
+            "currentManufacturing": self.manufacturingCheck.isChecked(),
             "features": []
         }
         for row in range(self.featureTable.rowCount()):
@@ -248,6 +254,7 @@ class partForm(QWidget):
         self.revInput.setText(selectedPartData['rev'])
         self.udInput.setText(selectedPartData['uploadDate'])
         self.notesInput.setText(selectedPartData['notes'])
+        self.manufacturingCheck.setChecked(selectedPartData.get('currentManufacturing', False))
         
         self.featureTable.setRowCount(0)
         for feature in selectedPartData['features']:
@@ -459,7 +466,7 @@ class PartFeaturesModel(QAbstractItemModel):
                     return f"Engine: {item['engine']}"
                 elif index.column() == 5:
                     return f"CPK: {item.get('cpk', 'N/A')}"
-            else: 
+            else:
                 if index.column() == 0:
                     return item.get('partNumber', '')
                 elif index.column() == 1:
@@ -473,7 +480,10 @@ class PartFeaturesModel(QAbstractItemModel):
                     return item.get('dueDate', '')
                 elif index.column() == 4:
                     return item.get('notes', '')
-                    
+            pass
+        elif role == Qt.BackgroundRole:
+            if 'currentManufacturing' in item and item['currentManufacturing']:
+                return QtGui.QBrush(QtGui.QColor('red'))     
         return None
     
     def headerData(self, section, orientation, role=Qt.DisplayRole):
@@ -643,7 +653,7 @@ class uploadDataForm(QWidget):
         
         readPdfButton = QPushButton('Add Data From PDF')
         readPdfButton.setStyleSheet("background-color: #439EF3")
-        readPdfButton.clicked.connect(self.submitData)
+        readPdfButton.clicked.connect(self.openPdfFileDialog)
         layout.addWidget(readPdfButton, 6, 2, 1, 3)
         
         addPartButton = QPushButton('Save Data')
@@ -673,17 +683,41 @@ class uploadDataForm(QWidget):
         for i, key in enumerate(['feature','kpcNum', 'tol']):
             self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
             
-    def extractDataFromPdf(pdf_path, tolerance):
-        reader = PdfReader(pdf_path)
-        text = ''
-        for page in reader.pages:
-            text += page.extract_text() + '\n'
+    def openPdfFileDialog(self):
+        initialDir = '//Server/d/Inspection/CMM Files/Printouts'
+        filePath, _ = QFileDialog.getOpenFileName(
+            self, 
+            "Open PDF File", 
+            initialDir, 
+            "PDF Files (*.pdf)"
+        )
+        if filePath:
+            self.extractDataFromPdf(filePath)
             
-        pattern = re.compile(r'\b\d+\.?\d*\b')
-        measurements = pattern.findall(text)
+    def extractDataFromPdf(self, filePath):
+        part_data = database.get_part_by_id(self.partNumber.text())
+        tolerances = {feature['kpcNum']: parse_tolerance(feature['tol']) for feature in part_data['features']}
+        print(tolerances)
+        try:
+            reader = PdfReader(filePath)
+            text = ''
+            for page in reader.pages:
+                text += page.extract_text() + '\n'
+            
+            pattern = re.compile(r'\b\d*\.?\d+\b')
+            measurements = [float(m) for m in pattern.findall(text)]
+            
+            matched_measurements = {kpc: [] for kpc in tolerances.keys()}
+            for measurement in measurements:
+                for kpc, (lower, upper) in tolerances.items():
+                    if lower < measurement < upper:
+                        matched_measurements[kpc].append(measurement)
+                    
+            print(matched_measurements)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to read PDF: {str(e)}")
         
-        filtered_measurements = [m for m in measurements if float(m) >= tolerance]
-        print(filtered_measurements)
+        
             
     def submitData(self):
         part_number = self.partNumber.text()
@@ -1063,21 +1097,21 @@ def passMismatch():
     dlg.exec()
     
 def parse_tolerance(tolerance):
-    dia_pattern = re.compile(r'DIA (\d+\.\d+)-(\d+\.\d+)')
-    specific_tolerance_pattern = re.compile(r'([A-Za-z ]+) (\.\d+)')
+    range_pattern = re.compile(r'(?<!\S)(\d*\.\d+)\s*-\s*(\d*\.\d+)(?!\S)')
+    specific_tolerance_pattern = re.compile(r'([A-Za-z ]+)\s+(\d*\.\d+)')
     
-    dia_match = dia_pattern.search(tolerance)
-    specific_tolerance_match = specific_tolerance_pattern.search(tolerance)
+    range_match = range_pattern.search(tolerance)
     
-    if dia_match:
-        min_val, max_val = map(float, dia_match.groups())
+    if range_match:
+        max_val, min_val = map(float, range_match.groups())
         return ( max_val, min_val)
-        
-    elif specific_tolerance_match:
+    
+    specific_tolerance_match = specific_tolerance_pattern.search(tolerance)
+    if specific_tolerance_match:
         tolerance_type, value = specific_tolerance_match.groups()
         return (float(value), 0)
-    else: 
-        return None, None 
+    
+    return None, None
 
 def calculate_cpk(data, usl=None, lsl=None, target=None):
     if not data or len(data) < 2 or np.isnan(data).any() or np.isinf(data).any():
