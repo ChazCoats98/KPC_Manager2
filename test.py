@@ -11,7 +11,7 @@ df = pd.read_excel('part_data.xlsx')
 
 
 for (partNumber, serialNumber, uploadDate), group in df.groupby(['partNumber', 'serialNumber','uploadDate']):
-    group['kpcNum'] = group['kpcNum'].astype(str).str.rstrip('.0')
+    group['kpcNum'] = group['kpcNum'].astype(str).replace('\.0$', '', regex=True)
     group['measurement'] = group['measurement'].astype(str)
     
     partNumber = str(int(partNumber)) if pd.notnull(partNumber) else partNumber

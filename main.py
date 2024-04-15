@@ -3,6 +3,7 @@ import numpy as np
 import shutil
 import hashlib
 import re
+from PyPDF2 import PdfReader
 from datetime import datetime, timedelta, date
 import time
 import typing
@@ -172,7 +173,7 @@ class partForm(QWidget):
         layout.addWidget(cancelButton, 7, 0, 1, 4)
         
         self.featureTable = QTableWidget()
-        self.featureTable.setColumnCount(5)
+        self.featureTable.setColumnCount(6)
         self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Operation Number", "Tolerance", "Engine"])
         self.featureTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.featureTable.columnCount()):
@@ -189,8 +190,11 @@ class partForm(QWidget):
     def addFeatureToTable(self, feature_data):
         row_position = self.featureTable.rowCount()
         self.featureTable.insertRow(row_position)
-        for i, key in enumerate(['feature', 'designation', 'kpcNum', 'opNum', 'tol', 'engine']):
-            self.featureTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
+        
+        keys = ['feature', 'designation', 'kpcNum', 'opNum', 'tol', 'engine']
+        for i, key in enumerate(keys):
+            value = feature_data.get(key, '')
+            self.featureTable.setItem(row_position, i, QTableWidgetItem(value))
             
     def submitPart(self):
                 
@@ -637,15 +641,20 @@ class uploadDataForm(QWidget):
         layout.addWidget(lotSizeLabel, 3, 4)
         layout.addWidget(self.lotSizeComboBox, 3, 5, 1, 1)
         
+        readPdfButton = QPushButton('Add Data From PDF')
+        readPdfButton.setStyleSheet("background-color: #439EF3")
+        readPdfButton.clicked.connect(self.submitData)
+        layout.addWidget(readPdfButton, 6, 2, 1, 3)
+        
         addPartButton = QPushButton('Save Data')
         addPartButton.setStyleSheet("background-color: #3ADC73")
         addPartButton.clicked.connect(self.submitData)
-        layout.addWidget(addPartButton, 6, 2, 1, 3)
+        layout.addWidget(addPartButton, 7, 2, 1, 3)
         
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
-        layout.addWidget(cancelButton, 7, 2, 1, 3)
+        layout.addWidget(cancelButton, 8, 2, 1, 3)
         
         self.dataTable = QTableWidget()
         self.dataTable.setColumnCount(5)
@@ -663,6 +672,18 @@ class uploadDataForm(QWidget):
         self.dataTable.insertRow(row_position)
         for i, key in enumerate(['feature','kpcNum', 'tol']):
             self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
+            
+    def extractDataFromPdf(pdf_path, tolerance):
+        reader = PdfReader(pdf_path)
+        text = ''
+        for page in reader.pages:
+            text += page.extract_text() + '\n'
+            
+        pattern = re.compile(r'\b\d+\.?\d*\b')
+        measurements = pattern.findall(text)
+        
+        filtered_measurements = [m for m in measurements if float(m) >= tolerance]
+        print(filtered_measurements)
             
     def submitData(self):
         part_number = self.partNumber.text()
@@ -764,7 +785,7 @@ class uploadDataForm(QWidget):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"An error occurred while saving the file: {e}")
                 
-            
+        
             
         self.close()
         self.calculateAndUpdateCpk(self.partId)
@@ -869,13 +890,16 @@ class historicalData(QWidget):
             return
         
         sourceIndex = self.proxyModel.mapToSource(index)
-        uploadDate = self.model.itemFromIndex(sourceIndex.sibling(sourceIndex.row(), 0)).text()
-        serialNumber = self.model.itemFromIndex(sourceIndex.sibling(sourceIndex.row(), 1)).text()
+        uploadDate = self.model.itemFromIndex(sourceIndex.siblingAtColumn(0)).text()
+        stripped_date = datetime.strptime(uploadDate, '%m/%d/%Y')
+        formatted_date = datetime.strftime(stripped_date, '%m/%d/%y')
+        serialNumber = self.model.itemFromIndex(sourceIndex.siblingAtColumn(1)).text()
         
         if uploadDate and serialNumber:
             partNumber = self.partNumber.text()
-            result = database.delete_measurement_by_id(self, partNumber, serialNumber, uploadDate)
+            result = database.delete_measurement_by_id(self, partNumber, serialNumber, formatted_date)
             if result > 0:
+                self.currentRow = sourceIndex.row()
                 self.refreshTreeView()
         else: 
             QMessageBox.warning(self, "Error", "Could not retrieve data.")
@@ -915,7 +939,7 @@ class historicalData(QWidget):
                         QStandardItem(meas)
                     ]
                     parentRow[0].appendRow(childRow)
-                    
+        self.model.layoutChanged.emit()
                     
     def refreshTreeView(self):
         part_id = self.partId
@@ -923,15 +947,22 @@ class historicalData(QWidget):
         selectedPartUploadData = database.get_measurements_by_id(part_id)
         currentSortColumn = self.treeView.header().sortIndicatorSection()
         currentSortOrder = self.treeView.header().sortIndicatorOrder()
-        currentScrollPosition = self.treeView.verticalScrollBar().value()
         
         self.loadPartData(selectedPartData, selectedPartUploadData)
         
+        if hasattr(self, 'currentRow'):
+            rowCount = self.model.rowCount()
+            if rowCount > 0:
+                newRowIndex = min(self.currentRow, rowCount - 1)
+                newIndex = self.model.index(newRowIndex, 0)
+                mappedIndex = self.proxyModel.mapFromSource(newIndex)
+                self.treeView.setCurrentIndex(mappedIndex)
+                print(mappedIndex.row(), mappedIndex.column())
+                self.treeView.scrollTo(mappedIndex, 5)
+        
         self.treeView.header().setSortIndicator(currentSortColumn, currentSortOrder)
         self.treeView.sortByColumn(currentSortColumn, currentSortOrder)
-        self.treeView.verticalScrollBar().setValue(currentScrollPosition)
-        print(currentScrollPosition)
-    
+        
     def closeWindow(self):
         self.close()
         
