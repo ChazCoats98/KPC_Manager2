@@ -279,6 +279,7 @@ class dashboard(QMainWindow):
         self.proxyModel.setSourceModel(self.model)
         self.tree_view.setModel(self.proxyModel)
         self.tree_view.setSortingEnabled(True)
+        self.tree_view.sortByColumn(3, Qt.AscendingOrder)
         self.tree_view.resize(1200,800)
         self.mainLayout.addWidget(self.tree_view)
         
@@ -633,6 +634,8 @@ class uploadDataForm(QWidget):
         layout.addWidget(serialNumberLabel, 2, 0)
         layout.addWidget(self.serialNumberInput, 2, 1, 1, 2)
         
+        self.serialNumberInput.textChanged.connect(self.checkSerialNumber)
+        
         runNumberLabel = QLabel('Run Number:')
         self.runNumberInput = QLineEdit()
         self.runNumberInput.setPlaceholderText('Enter Run Number')
@@ -676,6 +679,15 @@ class uploadDataForm(QWidget):
         
         
         self.setLayout(layout)
+        
+    def checkSerialNumber(self, text):
+        exists = database.check_serial_number(text)
+        print(exists)
+        if exists:
+            self.serialNumberInput.setStyleSheet("background-color: red")
+            QMessageBox.warning(self, "Serial Number Invalid", "Data for this serial number has already been uploaded.")
+        else: 
+            self.serialNumberInput.setStyleSheet("background-color: white")
             
     def addFeatureToTable(self, feature_data):
         row_position = self.dataTable.rowCount()
@@ -684,7 +696,9 @@ class uploadDataForm(QWidget):
             self.dataTable.setItem(row_position, i, QTableWidgetItem(feature_data[key]))
             
     def openPdfFileDialog(self):
-        initialDir = '//Server/d/Inspection/CMM Files/Printouts'
+        partNumber = self.partNumber.text()
+        serialNumber = self.serialNumberInput.text()
+        initialDir = f'//Server/d/Inspection/CMM Files/Printouts/{partNumber}/{serialNumber}'
         filePath, _ = QFileDialog.getOpenFileName(
             self, 
             "Open PDF File", 
@@ -709,12 +723,18 @@ class uploadDataForm(QWidget):
             
             matched_measurements = {kpc: [] for kpc in tolerances.keys()}
             for measurement in measurements:
-                for kpc, (lower, upper) in tolerances.items():
-                    if lower < measurement < upper:
+                for kpc, tolerance in tolerances.items():
+                    lower, upper = tolerance
+                    if lower is not None and upper is not None and lower < measurement < upper:
                         matched_measurements[kpc].append(measurement)
                     
             print(matched_measurements)
+            for row in range(self.dataTable.rowCount()):
+                kpcNum = self.dataTable.item(row, 1).text()
+                if kpcNum in matched_measurements and matched_measurements[kpcNum]:
+                    self.dataTable.setItem(row, 4, QTableWidgetItem(str(matched_measurements[kpcNum][0])))
         except Exception as e:
+            print(str(e))
             QMessageBox.critical(self, "Error", f"Failed to read PDF: {str(e)}")
         
         

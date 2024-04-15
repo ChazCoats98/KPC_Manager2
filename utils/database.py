@@ -122,3 +122,13 @@ def delete_measurement_by_id(self, partNumber, serialNumber, uploadDate, callbac
         print(e)
         return
     
+def check_serial_number(text):
+    try: 
+        result = measurements.find_one({'serialNumber': text})
+        if result:
+            return True
+        else: 
+            return False
+    except Exception as e:
+        print(e)
+        return False
