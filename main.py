@@ -858,66 +858,55 @@ class uploadDataForm(QWidget):
         
         existing_features = existing_part_data.get('features', [])
         features_dict = {feature['kpcNum']: feature for feature in existing_features}
-        upload_data = {
-                    "partNumber": self.partNumber.text(),
-                    "serialNumber": self.serialNumberInput.text(),
+        
+        try:
+            for serial_input, feature_table in zip(self.serialNumberInputs, self.featureTables):
+                serial_number = serial_input.text()
+                if database.check_serial_number(serial_number):
+                    QMessageBox.warning(self, "Duplicate Serial Number", f"Serial Number {serial_number} already in database")
+                    continue
+            
+                upload_data = {
+                    "partNumber": part_number,
+                    "serialNumber": serial_number,
                     "uploadDate": upload_date_value,
                     "measurements": []
                 }
-        
-        for serial_input, feature_table in zip(self.serialNumberInputs, self.featureTables):
-            serial_number = serial_input.text()
-            if database.check_serial_number(serial_number):
-                QMessageBox.warning(self, "Duplicate Serial Number", f"Serial Number {serial_number} already in database")
-                continue
             
-            for row in range(feature_table.rowCount()):
-                feature_number = feature_table.item(row, 0).text()
-                kpcNum = feature_table.item(row, 1).text()
-                opNum = feature_table.item(row, 3).text()
-                measurement = feature_table.item(row, 4).text()
+                for row in range(feature_table.rowCount()):
+                    feature_number = feature_table.item(row, 0).text()
+                    kpcNum = feature_table.item(row, 1).text()
+                    opNum = feature_table.item(row, 3).text()
+                    measurement = feature_table.item(row, 4).text()
             
-                if part_number:
-                    sheet.cell(row=target_row, column=1).value = part_number
-                if feature_number:
-                    sheet.cell(row=target_row, column=2).value = feature_number
-                if machine:
-                    sheet.cell(row=target_row, column=3).value = machine
-                if run_number:
-                    sheet.cell(row=target_row, column=4).value = run_number
-                if lot_size:
-                    sheet.cell(row=target_row, column=5).value = lot_size
-                if measurement:
-                    sheet.cell(row=target_row, column=6).value = measurement
-                if serial_number:
-                    sheet.cell(row=target_row, column=8).value = serial_number
-                target_row += 1
-                
-                updated_part_data = {
-                        "uploadDate": upload_date_value,
-                        "dueDate": due_date_str,
-                        "features": list(features_dict.values())
-                    }
-                
-                updated_part_data['features'].append({
-                    'kpcNum': kpcNum,
-                    'opNum': opNum
-                })
+                    if part_number:
+                        sheet.cell(row=target_row, column=1).value = part_number
+                    if feature_number:
+                        sheet.cell(row=target_row, column=2).value = feature_number
+                    if machine:
+                        sheet.cell(row=target_row, column=3).value = machine
+                    if run_number:
+                        sheet.cell(row=target_row, column=4).value = run_number
+                    if lot_size:
+                        sheet.cell(row=target_row, column=5).value = lot_size
+                    if measurement:
+                        sheet.cell(row=target_row, column=6).value = measurement
+                    if serial_number:
+                        sheet.cell(row=target_row, column=8).value = serial_number
+                    target_row += 1
             
-                upload_data["measurements"].append({
-                    "kpcNum": kpcNum,
-                    "measurement": measurement
-                })
+                    upload_data["measurements"].append({
+                        "kpcNum": kpcNum,
+                        "measurement": measurement
+                    })
                     
-                def on_submit_success(is_success):
-                    if is_success:
-                        self.dataSubmitted.emit()
             
-                database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
                 database.add_measurement(upload_data)
             
-        
-        workbook.save(filename=new_file_path)
+            workbook.save(filename=new_file_path)
+            QMessageBox.information(self, "Success", "Data uploaded successfully.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {str(e)}")
         try: 
             partNumber = self.partNumber.text()
             basePath = f'//server/D/Quality Control/UPPAP Records/Process Cert + Data Collection/Data points/{partNumber}'
