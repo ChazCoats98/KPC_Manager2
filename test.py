@@ -11,10 +11,14 @@ df = pd.read_excel('part_data.xlsx')
 
 
 for (partNumber, serialNumber, uploadDate), group in df.groupby(['partNumber', 'serialNumber','uploadDate']):
-    group['kpcNum'] = group['kpcNum'].astype(str).replace('\.0$', '', regex=True)
+    group['kpcNum'] = group['kpcNum'].astype(str).replace(r'\.0$', '', regex=True)
     group['measurement'] = group['measurement'].astype(str)
     
-    partNumber = str(int(partNumber)) if pd.notnull(partNumber) else partNumber
+    partNumberStr = str(partNumber)
+    if partNumberStr.isnumeric():
+        partNumber = str(int(partNumber))
+    else: 
+        partNumber = str(partNumber)
     serialNumber = str(serialNumber)
     formattedDate = uploadDate.strftime('%m/%d/%y') if pd.notnull(uploadDate) else uploadDate
     measurement_data = {

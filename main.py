@@ -4,6 +4,8 @@ import shutil
 import hashlib
 import re
 from PyPDF2 import PdfReader
+from pdfminer.high_level import extract_pages
+from pdfminer.layout import LTTextContainer
 from datetime import datetime, timedelta, date
 import time
 import typing
@@ -21,7 +23,8 @@ from PyQt5.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
     QFileDialog,
-    QCheckBox
+    QCheckBox,
+    QScrollArea
 )
 from utils import database
 from openpyxl import load_workbook
@@ -605,10 +608,19 @@ class uploadDataForm(QWidget):
     def __init__(self, partId=None):
         super().__init__()
         self.partId = partId
+        self.serialNumberInputs = []
+        self.featureTables = []
         self.setWindowTitle("New Data Upload")
         self.resize(800, 600)
         
         layout = QGridLayout()
+        
+        self.scrollArea = QScrollArea(self)
+        self.scrollAreaWidgetContents = QWidget()
+        self.scrollArea.setWidgetResizable(True)
+        self.scrollAreaWidgetLayout = QVBoxLayout(self.scrollAreaWidgetContents)
+        self.scrollArea.setWidget(self.scrollAreaWidgetContents)
+        layout.addWidget(self.scrollArea, 4, 0, 1, 7)
         
         # Part number form 
         partLabel = QLabel('Part Number:')
@@ -654,6 +666,11 @@ class uploadDataForm(QWidget):
         layout.addWidget(lotSizeLabel, 3, 4)
         layout.addWidget(self.lotSizeComboBox, 3, 5, 1, 1)
         
+        self.serialNumbersLayout = QVBoxLayout()
+        layout.addLayout(self.serialNumbersLayout, 4,0,1,7)
+        
+        self.lotSizeComboBox.currentTextChanged.connect(self.onLotSizeChange)
+        
         readPdfButton = QPushButton('Add Data From PDF')
         readPdfButton.setStyleSheet("background-color: #439EF3")
         readPdfButton.clicked.connect(self.openPdfFileDialog)
@@ -672,14 +689,69 @@ class uploadDataForm(QWidget):
         self.dataTable = QTableWidget()
         self.dataTable.setColumnCount(5)
         self.dataTable.horizontalHeader().setStretchLastSection(False)
+        self.dataTable.setHorizontalHeaderLabels(['Feature Number', 'KPC Number', 'Blueprint Dimension', 'Op Number', 'Measurement'])
         for column in range(self.dataTable.columnCount()):
             self.dataTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
             
-        layout.addWidget(self.dataTable, 4, 0, 1, 7)
+            
         
         
         self.setLayout(layout)
         
+    def onLotSizeChange(self, text):
+        if text.isdigit():
+            lot_size = int(text)
+            self.createLotInputs(lot_size)
+        else:
+            self.clearLotInputs()
+            
+    def createLotInputs(self, lot_size):
+        self.clearLotInputs()
+        
+        partData = database.get_part_by_id(self.partId)
+        if not partData:
+            QMessageBox.warning(self, "Error", "Part data not found in database.")
+            return
+        part_features = partData['features']
+        
+        for lot_index in range(lot_size):
+            serialNumberInput = QLineEdit()
+            serialNumberInput.setPlaceholderText(f'Enter Serial Number {lot_index+1}')
+            self.serialNumbersLayout.addWidget(serialNumberInput)
+            self.serialNumberInputs.append(serialNumberInput)
+            
+            featureTable = QTableWidget()
+            featureTable.setColumnCount(5)
+            featureTable.setRowCount(len(part_features))
+            featureTable.setHorizontalHeaderLabels(['Feature Number', 'KPC Number', 'Blueprint Dimension', 'Op Number', 'Measurement'])
+            featureTable.horizontalHeader().setStretchLastSection(False)
+            for column in range(featureTable.columnCount()):
+                featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+                
+            featureTable.setFixedHeight(250)
+                
+            for row, feature in enumerate(part_features):
+                featureTable.setItem(row, 0, QTableWidgetItem(feature['feature']))
+                featureTable.setItem(row, 1, QTableWidgetItem(feature['kpcNum']))
+                featureTable.setItem(row, 2, QTableWidgetItem(feature['tol']))
+                featureTable.setItem(row, 3, QTableWidgetItem(feature.get('opNum', '')))
+                featureTable.setItem(row, 4, QTableWidgetItem(''))
+                
+            
+            self.adjustTableHeight(featureTable)
+            self.featureTables.append(featureTable)
+            
+            self.scrollAreaWidgetLayout.addWidget(serialNumberInput)
+            self.scrollAreaWidgetLayout.addWidget(featureTable)
+        
+    def clearLotInputs(self):
+        while self.scrollAreaWidgetLayout.count():
+            item = self.scrollAreaWidgetLayout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.serialNumberInputs = []
+        self.featureTables = []
+                    
     def checkSerialNumber(self, text):
         exists = database.check_serial_number(text)
         print(exists)
@@ -688,6 +760,16 @@ class uploadDataForm(QWidget):
             QMessageBox.warning(self, "Serial Number Invalid", "Data for this serial number has already been uploaded.")
         else: 
             self.serialNumberInput.setStyleSheet("background-color: white")
+            
+    def adjustTableHeight(self, table):
+        total_height = table.horizontalHeader().height()
+        for i in range(table.rowCount()):
+            total_height += table.rowHeight(i)
+        
+        margin = 4
+        total_height += margin
+        
+        table.setFixedHeight(total_height)
             
     def addFeatureToTable(self, feature_data):
         row_position = self.dataTable.rowCount()
@@ -698,7 +780,11 @@ class uploadDataForm(QWidget):
     def openPdfFileDialog(self):
         partNumber = self.partNumber.text()
         serialNumber = self.serialNumberInput.text()
-        initialDir = f'//Server/d/Inspection/CMM Files/Printouts/{partNumber}/{serialNumber}'
+        initialDir = f'//Server/d/Inspection/CMM Files/Printouts/{partNumber}'
+        
+        if serialNumber:
+            initialDir = f'//Server/d/Inspection/CMM Files/Printouts/{partNumber}/{serialNumber}'
+            
         filePath, _ = QFileDialog.getOpenFileName(
             self, 
             "Open PDF File", 
@@ -709,43 +795,50 @@ class uploadDataForm(QWidget):
             self.extractDataFromPdf(filePath)
             
     def extractDataFromPdf(self, filePath):
-        part_data = database.get_part_by_id(self.partNumber.text())
-        tolerances = {feature['kpcNum']: parse_tolerance(feature['tol']) for feature in part_data['features']}
-        print(tolerances)
-        try:
-            reader = PdfReader(filePath)
-            text = ''
-            for page in reader.pages:
-                text += page.extract_text() + '\n'
+        for page_layout in extract_pages(filePath):
+            for element in page_layout:
+                if isinstance(element, LTTextContainer):
+                    for text_line in element:
+                        text = text_line.get_text().strip()
+                        measurements = re.findall(r"Diameter_Circle \d+\.\d+\s*\|-?\s*(\d+\.\d+)", text)
+                        print(measurements)
+        #part_data = database.get_part_by_id(self.partNumber.text())
+        #tolerances = {feature['kpcNum']: parse_tolerance(feature['tol']) for feature in part_data['features']}
+        #print(tolerances)
+        #try:
+            #reader = PdfReader(filePath)
+            #text = ''
+            #for page in reader.pages:
+                #text += page.extract_text() + '\n'
             
-            pattern = re.compile(r'\b\d*\.?\d+\b')
-            measurements = [float(m) for m in pattern.findall(text)]
+            #pattern = re.compile(r'\b\d*\.?\d+\b')
+            #measurements = [float(m) for m in pattern.findall(text)]
             
-            matched_measurements = {kpc: [] for kpc in tolerances.keys()}
-            for measurement in measurements:
-                for kpc, tolerance in tolerances.items():
-                    lower, upper = tolerance
-                    if lower is not None and upper is not None and lower < measurement < upper:
-                        matched_measurements[kpc].append(measurement)
+            #matched_measurements = {kpc: [] for kpc in tolerances.keys()}
+            #for measurement in measurements:
+                #for kpc, tolerance in tolerances.items():
+                    #lower, upper = tolerance
+                    #if lower is not None and upper is not None and lower < measurement < upper:
+                       # matched_measurements[kpc].append(measurement)
                     
-            print(matched_measurements)
-            for row in range(self.dataTable.rowCount()):
-                kpcNum = self.dataTable.item(row, 1).text()
-                if kpcNum in matched_measurements and matched_measurements[kpcNum]:
-                    self.dataTable.setItem(row, 4, QTableWidgetItem(str(matched_measurements[kpcNum][0])))
-        except Exception as e:
-            print(str(e))
-            QMessageBox.critical(self, "Error", f"Failed to read PDF: {str(e)}")
+            #print(matched_measurements)
+            #for row in range(self.dataTable.rowCount()):
+                #kpcNum = self.dataTable.item(row, 1).text()
+                #if kpcNum in matched_measurements and matched_measurements[kpcNum]:
+                    #self.dataTable.setItem(row, 4, QTableWidgetItem(str(matched_measurements[kpcNum][0])))
+        #except Exception as e:
+            #print(str(e))
+            #QMessageBox.critical(self, "Error", f"Failed to read PDF: {str(e)}")
         
         
             
     def submitData(self):
         part_number = self.partNumber.text()
-        serial_number = self.serialNumberInput.text()
+        existing_part_data = database.get_part_by_id(part_number)
         machine = self.machineComboBox.currentText()
         run_number = self.runNumberInput.text()
         lot_size = self.lotSizeComboBox.currentText()
-        start_row = 2
+        target_row = 2
         template_path = './utils/Templates/Measurement_Import_template.xlsx'
         upload_date_value = datetime.strftime(date.today(), '%m/%d/%Y')
         upload_date_file_path = datetime.strftime(date.today(), '%m-%d-%Y')
@@ -753,45 +846,85 @@ class uploadDataForm(QWidget):
         new_file_path = f'./Results/{part_number}_data_upload_{upload_date_file_path}.xlsx'
         due_date = upload_date + timedelta(days=90)
         due_date_str = due_date.strftime('%m/%d/%Y')
-        updated_part_data = {
-            "uploadDate": upload_date_value,
-            "dueDate": due_date_str,
-            "features": []
-        }
+
+        if not existing_part_data:
+            QMessageBox.warning(self, "Error", "Part data not found in database.")
+            return
         
         shutil.copy(template_path,  new_file_path)
         
         workbook = load_workbook(filename=new_file_path)
         sheet = workbook.active
         
-        for row in range(self.dataTable.rowCount()):
-            target_row = start_row + row
-            feature_number = self.dataTable.item(row, 0).text()
-            measurement = self.dataTable.item(row, 4).text()
+        existing_features = existing_part_data.get('features', [])
+        features_dict = {feature['kpcNum']: feature for feature in existing_features}
+        upload_data = {
+                    "partNumber": self.partNumber.text(),
+                    "serialNumber": self.serialNumberInput.text(),
+                    "uploadDate": upload_date_value,
+                    "measurements": []
+                }
+        
+        for serial_input, feature_table in zip(self.serialNumberInputs, self.featureTables):
+            serial_number = serial_input.text()
+            if database.check_serial_number(serial_number):
+                QMessageBox.warning(self, "Duplicate Serial Number", f"Serial Number {serial_number} already in database")
+                continue
             
-            if part_number:
-                sheet.cell(row=target_row, column=1).value = part_number
-            if feature_number:
-                sheet.cell(row=target_row, column=2).value = feature_number
-            if machine:
-                sheet.cell(row=target_row, column=3).value = machine
-            if run_number:
-                sheet.cell(row=target_row, column=4).value = run_number
-            if lot_size:
-                sheet.cell(row=target_row, column=5).value = lot_size
-            if measurement:
-                sheet.cell(row=target_row, column=6).value = measurement
-            if serial_number:
-                sheet.cell(row=target_row, column=8).value = serial_number
+            for row in range(feature_table.rowCount()):
+                feature_number = feature_table.item(row, 0).text()
+                kpcNum = feature_table.item(row, 1).text()
+                opNum = feature_table.item(row, 3).text()
+                measurement = feature_table.item(row, 4).text()
             
+                if part_number:
+                    sheet.cell(row=target_row, column=1).value = part_number
+                if feature_number:
+                    sheet.cell(row=target_row, column=2).value = feature_number
+                if machine:
+                    sheet.cell(row=target_row, column=3).value = machine
+                if run_number:
+                    sheet.cell(row=target_row, column=4).value = run_number
+                if lot_size:
+                    sheet.cell(row=target_row, column=5).value = lot_size
+                if measurement:
+                    sheet.cell(row=target_row, column=6).value = measurement
+                if serial_number:
+                    sheet.cell(row=target_row, column=8).value = serial_number
+                target_row += 1
+                
+                updated_part_data = {
+                        "uploadDate": upload_date_value,
+                        "dueDate": due_date_str,
+                        "features": list(features_dict.values())
+                    }
+                
+                updated_part_data['features'].append({
+                    'kpcNum': kpcNum,
+                    'opNum': opNum
+                })
+            
+                upload_data["measurements"].append({
+                    "kpcNum": kpcNum,
+                    "measurement": measurement
+                })
+                    
+                def on_submit_success(is_success):
+                    if is_success:
+                        self.dataSubmitted.emit()
+            
+                database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
+                database.add_measurement(upload_data)
             
         
         workbook.save(filename=new_file_path)
         try: 
+            partNumber = self.partNumber.text()
+            basePath = f'//server/D/Quality Control/UPPAP Records/Process Cert + Data Collection/Data points/{partNumber}'
             fileName, ok = QFileDialog.getSaveFileName(
                 self,
                 "Save Excel File",
-                "",
+                basePath,
                 "Excel files (*.xlsx)")
             
         except Exception as e:
@@ -806,35 +939,6 @@ class uploadDataForm(QWidget):
                 fileName += '.xlsx'
             try: 
                 shutil.move(new_file_path, fileName)
-                
-                upload_data = {
-                    "partNumber": self.partNumber.text(),
-                    "serialNumber": self.serialNumberInput.text(),
-                    "uploadDate": upload_date_value,
-                    "measurements": []
-                }
-            
-                for row in range(self.dataTable.rowCount()):
-                    kpcNum = self.dataTable.item(row, 1).text()
-                    opNum = self.dataTable.item(row, 3).text()
-                    measurement_upload = self.dataTable.item(row, 4).text()
-                    
-                    updated_part_data['features'].append({
-                        'kpcNum': kpcNum,
-                        'opNum': opNum
-                    })
-            
-                    upload_data["measurements"].append({
-                        "kpcNum": kpcNum,
-                        "measurement": measurement_upload
-                    })
-                    
-                def on_submit_success(is_success):
-                    if is_success:
-                        self.dataSubmitted.emit()
-            
-                database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
-                database.add_measurement(upload_data)
         
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"An error occurred while saving the file: {e}")
@@ -851,22 +955,22 @@ class uploadDataForm(QWidget):
         
         self.dataTable.setRowCount(0)
         self.dataTable.setHorizontalHeaderLabels(['Feature Number', 'KPC Number', 'Blueprint Dimension', 'Op Number', 'Measurement'])
-        
-        for feature in selectedPartData['features']:
-            self.addFeatureToTable(feature)
             
     def calculateAndUpdateCpk(self, partId):
         part_data = database.get_part_by_id(partId)
+        if part_data:
+            tolerances = {feature['kpcNum']: parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
+            
         measurement_data = database.get_measurements_by_id(partId)
         
-        tolerances = {feature['kpcNum']: parse_tolerance(feature['tol']) for feature in part_data['features']}
-        print(tolerances)
         measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
-        for entry in measurement_data:
-            for measurement in entry['measurements']:
-                kpcNum = measurement['kpcNum']
-                if kpcNum in measurements_by_kpc:
-                    measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
+        
+        if measurement_data:
+            for entry in measurement_data:
+                for measurement in entry.get('measurements', []):
+                    kpcNum = measurement.get('kpcNum')
+                    if kpcNum and kpcNum in measurements_by_kpc:
+                        measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
         print(measurements_by_kpc)            
         cpk_values = {}
         for kpc, data in measurements_by_kpc.items():
@@ -874,7 +978,8 @@ class uploadDataForm(QWidget):
             print(f'usl: {usl} lsl: {lsl}')
             if usl is not None and lsl is not None:
                 cpk = calculate_cpk(data, usl, lsl)
-                cpk_values[kpc] = cpk
+                if cpk is not None:
+                    cpk_values[kpc] = cpk
         print(cpk_values)
                 
         if cpk_values:
@@ -1129,7 +1234,7 @@ def parse_tolerance(tolerance):
     specific_tolerance_match = specific_tolerance_pattern.search(tolerance)
     if specific_tolerance_match:
         tolerance_type, value = specific_tolerance_match.groups()
-        return (float(value), 0)
+        return (0, float(value))
     
     return None, None
 
