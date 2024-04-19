@@ -110,6 +110,7 @@ def delete_duplicate_measurements():
         )
         
 def delete_measurement_by_id(self, partNumber, serialNumber, uploadDate, callback=None):
+    print(partNumber, serialNumber, uploadDate )
     try:
         result = measurements.delete_one({'partNumber': partNumber, 'serialNumber': serialNumber, 'uploadDate':uploadDate})
         if result.deleted_count > 0:

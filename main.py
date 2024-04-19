@@ -306,6 +306,11 @@ class dashboard(QMainWindow):
         self.showHistoricalUploads.clicked.connect(self.openHistoricalUploadWindow)
         self.mainLayout.addWidget(self.showHistoricalUploads)
         
+        self.showCpkData = QPushButton('Show CPK Data for selected Part')
+        self.showCpkData.setStyleSheet("background-color: #439EF3")
+        self.showCpkData.clicked.connect(self.openCpkDashboard)
+        self.mainLayout.addWidget(self.showCpkData)
+        
         self.deletePart = QPushButton('Delete Part')
         self.deletePart.setStyleSheet("background-color: #D6575D")
         self.deletePart.clicked.connect(self.deleteSelectedPart)
@@ -364,6 +369,33 @@ class dashboard(QMainWindow):
             self.historicalData.loadPartData(selectedPartData, selectedPartUploadData)
             database.delete_duplicate_measurements()
             self.historicalData.show()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+            print(e)
+            
+    def openCpkDashboard(self):
+        index = self.tree_view.currentIndex()
+        if not index.isValid():
+            QMessageBox.warning(self, "Error", "No part selected.")
+            return
+        sourceIndex = self.proxyModel.mapToSource(index)
+        part_id = self.model.getPartId(sourceIndex)
+        if part_id is None:
+            QMessageBox.warning(self, "Error", "Failed to identify selected part.")
+            return
+        
+        selectedPartData = database.get_part_by_id(part_id)
+        selectedPartUploadData = database.get_measurements_by_id(part_id)
+        print(selectedPartUploadData)
+        if not selectedPartData or selectedPartUploadData is None:
+            QMessageBox.warning(self, "Error", "Could not find part data.")
+            return
+        
+        try: 
+            self.CpkDashboard = CpkDashboard(partId=part_id)
+            self.CpkDashboard.loadPartData(selectedPartData, selectedPartUploadData)
+            database.delete_duplicate_measurements()
+            self.CpkDashboard.show()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
             print(e)
@@ -681,10 +713,15 @@ class uploadDataForm(QWidget):
         addPartButton.clicked.connect(self.submitData)
         layout.addWidget(addPartButton, 7, 2, 1, 3)
         
+        updateCpkButton = QPushButton('Calculate CPK')
+        updateCpkButton.setStyleSheet("background-color: #3ADC73")
+        updateCpkButton.clicked.connect(self.calculateCpk)
+        layout.addWidget(updateCpkButton, 8, 2, 1, 3)
+        
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
-        layout.addWidget(cancelButton, 8, 2, 1, 3)
+        layout.addWidget(cancelButton, 9, 2, 1, 3)
         
         self.dataTable = QTableWidget()
         self.dataTable.setColumnCount(5)
@@ -697,6 +734,9 @@ class uploadDataForm(QWidget):
         
         
         self.setLayout(layout)
+        
+    def calculateCpk(self):
+        self.calculateAndUpdateCpk(self.partId)
         
     def onLotSizeChange(self, text):
         if text.isdigit():
@@ -842,7 +882,7 @@ class uploadDataForm(QWidget):
         template_path = './utils/Templates/Measurement_Import_template.xlsx'
         upload_date_value = datetime.strftime(date.today(), '%m/%d/%Y')
         upload_date_file_path = datetime.strftime(date.today(), '%m-%d-%Y')
-        upload_date = datetime.strptime(upload_date_value, '%m/%d/%Y')
+        upload_date = datetime.strptime(upload_date_value, '%m/%d/%y')
         new_file_path = f'./Results/{part_number}_data_upload_{upload_date_file_path}.xlsx'
         due_date = upload_date + timedelta(days=90)
         due_date_str = due_date.strftime('%m/%d/%Y')
@@ -856,9 +896,6 @@ class uploadDataForm(QWidget):
         workbook = load_workbook(filename=new_file_path)
         sheet = workbook.active
         
-        existing_features = existing_part_data.get('features', [])
-        features_dict = {feature['kpcNum']: feature for feature in existing_features}
-        
         try:
             for serial_input, feature_table in zip(self.serialNumberInputs, self.featureTables):
                 serial_number = serial_input.text()
@@ -869,14 +906,18 @@ class uploadDataForm(QWidget):
                 upload_data = {
                     "partNumber": part_number,
                     "serialNumber": serial_number,
-                    "uploadDate": upload_date_value,
+                    "uploadDate": upload_date,
                     "measurements": []
                 }
+                
+                updated_part_data = {
+                        "uploadDate": upload_date_value,
+                        "dueDate": due_date_str,
+                    }
             
                 for row in range(feature_table.rowCount()):
                     feature_number = feature_table.item(row, 0).text()
                     kpcNum = feature_table.item(row, 1).text()
-                    opNum = feature_table.item(row, 3).text()
                     measurement = feature_table.item(row, 4).text()
             
                     if part_number:
@@ -900,8 +941,13 @@ class uploadDataForm(QWidget):
                         "measurement": measurement
                     })
                     
-            
                 database.add_measurement(upload_data)
+            
+            def on_submit_success(is_success):
+                    if is_success:
+                        self.dataSubmitted.emit()
+                        
+            database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
             
             workbook.save(filename=new_file_path)
             QMessageBox.information(self, "Success", "Data uploaded successfully.")
@@ -974,6 +1020,94 @@ class uploadDataForm(QWidget):
         if cpk_values:
             formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
             database.save_cpk_values(partId, formatted_cpk_values)
+            self.dataSubmitted.emit()
+        
+    def closeWindow(self):
+        self.close()
+        
+class CpkDashboard(QWidget):
+    def __init__(self, partId=None):
+        super().__init__()
+        self.partId = partId
+        self.setWindowTitle("CPK Dashboard")
+        self.resize(800, 600)
+        
+        layout = QGridLayout()
+        
+        partLabel = QLabel('Part Number:')
+        self.partNumber = QLabel('')
+        layout.addWidget(partLabel, 0, 0)
+        layout.addWidget(self.partNumber, 0, 1)
+
+        revLabel = QLabel('Revision Letter:')
+        self.revLetter = QLabel('')
+        layout.addWidget(revLabel, 0, 2)
+        layout.addWidget(self.revLetter, 0, 3)
+        
+        
+        cancelButton = QPushButton('Close Window')
+        cancelButton.setStyleSheet("background-color: #D6575D")
+        cancelButton.clicked.connect(self.closeWindow)
+        layout.addWidget(cancelButton, 7, 0, 1, 6)
+        
+        self.model = QStandardItemModel()
+        self.proxyModel = DateSortProxyModel(dateColumnIndex=0, parent=self)
+        self.proxyModel.setSourceModel(self.model)
+        self.treeView= QTreeView()
+        self.treeView.header().setStretchLastSection(False)
+        self.treeView.header().setSectionResizeMode(QHeaderView.Stretch)
+        self.model.setHorizontalHeaderLabels(['Upload Date', 'Part Number', 'Serial Number', 'KPC Number', 'Measurement'])
+        self.treeView.setModel(self.proxyModel)
+        self.treeView.setSortingEnabled(True)
+        
+            
+        layout.addWidget(self.treeView, 4, 0, 1, 6)
+        
+        
+        self.setLayout(layout)
+        
+    def loadPartData(self, selectedPartData, selectedPartUploadData):
+        self.partNumber.setText(selectedPartData['partNumber'])
+        self.revLetter.setText(selectedPartData['rev'])
+        
+        self.model.clear()
+        self.model.setHorizontalHeaderLabels(['Upload Date','Serial Number', 'KPC Number', 'Blueprint Requirement', 'Measurement'])
+        self.treeView.sortByColumn(0, Qt.AscendingOrder)
+        
+        for uploadData in selectedPartUploadData:
+            uploadDate = uploadData['uploadDate']
+            formatted_date = format_date(uploadDate)
+            serialNumber = uploadData['serialNumber']
+            
+            parentRow = [
+                QStandardItem(formatted_date),
+                QStandardItem(serialNumber),
+                QStandardItem(""),
+                QStandardItem("")
+            ]
+            self.model.appendRow(parentRow)
+            
+            if 'measurements' in uploadData:
+            
+                for measurement in uploadData['measurements']:
+                    kpcNum = measurement['kpcNum']
+                    meas = measurement['measurement']
+                    tolerance = self.getTolerance(selectedPartData, kpcNum)
+                    childRow = [
+                        QStandardItem(""),
+                        QStandardItem(""),
+                        QStandardItem(kpcNum),
+                        QStandardItem(tolerance),
+                        QStandardItem(meas)
+                    ]
+                    parentRow[0].appendRow(childRow)
+        self.model.layoutChanged.emit()
+        
+    def getTolerance(self, selectedPartData, kpcNum):
+        for feature in selectedPartData['features']:
+            if feature['kpcNum'] == kpcNum:
+                return feature['tol']
+        return "N/A"
         
     def closeWindow(self):
         self.close()
