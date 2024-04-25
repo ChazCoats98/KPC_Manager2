@@ -1,14 +1,18 @@
 import sys
 import numpy as np
 import shutil
+import mplcursors
 import hashlib
 import re
+import matplotlib.dates as mdates
+from collections import defaultdict
 from PyPDF2 import PdfReader
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextContainer
 from datetime import datetime, timedelta, date
-import time
-import typing
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 from pymongo import MongoClient
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QFormLayout, QPushButton, QWidget, QLineEdit, QLabel, QTableWidget, QTableWidgetItem, QDockWidget, QHeaderView, QFileSystemModel, QComboBox
 from PyQt5 import QtGui
@@ -672,14 +676,6 @@ class uploadDataForm(QWidget):
         layout.addWidget(udLabel, 0, 4)
         layout.addWidget(self.uploadDate, 0, 5)
         
-        serialNumberLabel = QLabel('Serial Number:')
-        self.serialNumberInput = QLineEdit()
-        self.serialNumberInput.setPlaceholderText('Enter Serial Number')
-        layout.addWidget(serialNumberLabel, 2, 0)
-        layout.addWidget(self.serialNumberInput, 2, 1, 1, 2)
-        
-        self.serialNumberInput.textChanged.connect(self.checkSerialNumber)
-        
         runNumberLabel = QLabel('Run Number:')
         self.runNumberInput = QLineEdit()
         self.runNumberInput.setPlaceholderText('Enter Run Number')
@@ -757,6 +753,7 @@ class uploadDataForm(QWidget):
         for lot_index in range(lot_size):
             serialNumberInput = QLineEdit()
             serialNumberInput.setPlaceholderText(f'Enter Serial Number {lot_index+1}')
+            serialNumberInput.textChanged.connect(self.checkSerialNumber)
             self.serialNumbersLayout.addWidget(serialNumberInput)
             self.serialNumberInputs.append(serialNumberInput)
             
@@ -793,13 +790,14 @@ class uploadDataForm(QWidget):
         self.featureTables = []
                     
     def checkSerialNumber(self, text):
+        sender = self.sender()
         exists = database.check_serial_number(text)
         print(exists)
         if exists:
-            self.serialNumberInput.setStyleSheet("background-color: red")
+            sender.setStyleSheet("background-color: red")
             QMessageBox.warning(self, "Serial Number Invalid", "Data for this serial number has already been uploaded.")
         else: 
-            self.serialNumberInput.setStyleSheet("background-color: white")
+            sender.setStyleSheet("background-color: white")
             
     def adjustTableHeight(self, table):
         total_height = table.horizontalHeader().height()
@@ -1030,9 +1028,13 @@ class CpkDashboard(QWidget):
         super().__init__()
         self.partId = partId
         self.setWindowTitle("CPK Dashboard")
-        self.resize(800, 600)
+        self.resize(1200, 800)
         
         layout = QGridLayout()
+        
+        self.figure = Figure()
+        self.canvas = FigureCanvas(self.figure)
+        layout.addWidget(self.canvas, 4, 0, 1, 6)
         
         partLabel = QLabel('Part Number:')
         self.partNumber = QLabel('')
@@ -1044,64 +1046,132 @@ class CpkDashboard(QWidget):
         layout.addWidget(revLabel, 0, 2)
         layout.addWidget(self.revLetter, 0, 3)
         
+        cpkLabel = QLabel('CPK:')
+        self.cpkDisplay= QLabel('')
+        layout.addWidget(cpkLabel, 0, 4)
+        layout.addWidget(self.cpkDisplay, 0, 5)
+        
+        kpcLabel = QLabel('KPC:')
+        layout.addWidget(kpcLabel, 0, 6)
+        
+        self.kpcComboBox = QComboBox()
+        layout.addWidget(self.kpcComboBox, 0, 7)
+        self.kpcComboBox.currentIndexChanged.connect(self.updateGraph)
+        
+        kpcLabel = QLabel('Data:')
+        layout.addWidget(kpcLabel, 0, 8)
+        
+        self.dataRangeComboBox = QComboBox()
+        self.dataRangeComboBox.addItems(['Last', 'First', 'All'])
+        layout.addWidget(self.dataRangeComboBox, 0, 9)
+        self.dataRangeComboBox.currentIndexChanged.connect(self.updateGraph)
+        
+        self.figure = Figure()
+        self.canvas = FigureCanvas(self.figure)
+        layout.addWidget(self.canvas, 4, 0, 1, 10)
         
         cancelButton = QPushButton('Close Window')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
-        layout.addWidget(cancelButton, 7, 0, 1, 6)
-        
-        self.model = QStandardItemModel()
-        self.proxyModel = DateSortProxyModel(dateColumnIndex=0, parent=self)
-        self.proxyModel.setSourceModel(self.model)
-        self.treeView= QTreeView()
-        self.treeView.header().setStretchLastSection(False)
-        self.treeView.header().setSectionResizeMode(QHeaderView.Stretch)
-        self.model.setHorizontalHeaderLabels(['Upload Date', 'Part Number', 'Serial Number', 'KPC Number', 'Measurement'])
-        self.treeView.setModel(self.proxyModel)
-        self.treeView.setSortingEnabled(True)
-        
-            
-        layout.addWidget(self.treeView, 4, 0, 1, 6)
-        
+        layout.addWidget(cancelButton, 7, 0, 1, 10)
         
         self.setLayout(layout)
         
+        self.selectedPartUploadData = []
+        self.selectedPartData = []
+        
     def loadPartData(self, selectedPartData, selectedPartUploadData):
+        if isinstance(selectedPartData, list):
+            self.selectedPartData = selectedPartData[0]
+        else: 
+            self.selectedPartData = selectedPartData
+            
         self.partNumber.setText(selectedPartData['partNumber'])
         self.revLetter.setText(selectedPartData['rev'])
+        kpcs = {measurement['kpcNum'] for data in selectedPartUploadData for measurement in data['measurements']}
+        self.kpcComboBox.addItems(sorted(kpcs))
+        self.selectedPartUploadData = selectedPartUploadData
+        self.selectedPartData = selectedPartData
+        if self.kpcComboBox.count() > 0:
+            self.kpcComboBox.setCurrentIndex(0)
+            self.updateGraph()
         
-        self.model.clear()
-        self.model.setHorizontalHeaderLabels(['Upload Date','Serial Number', 'KPC Number', 'Blueprint Requirement', 'Measurement'])
-        self.treeView.sortByColumn(0, Qt.AscendingOrder)
+    def updateGraph(self):
+        kpcNum = self.kpcComboBox.currentText()
+        if not kpcNum:
+            return
+        dataRange = self.dataRangeComboBox.currentText()
+        tolerance = None
+        cpk_value = self.getCpkValue(kpcNum)
+        self.cpkDisplay.setText(f'{cpk_value}' if cpk_value is not None else 'N/A')
         
-        for uploadData in selectedPartUploadData:
-            uploadDate = uploadData['uploadDate']
-            formatted_date = format_date(uploadDate)
-            serialNumber = uploadData['serialNumber']
+        for feature in self.selectedPartData['features']:
+            if feature['kpcNum'] == kpcNum:
+                tolerance = feature['tol']
+                break
+        
+        if tolerance:
+            lower_tolerance, upper_tolerance = parse_tolerance(tolerance)
+        else:
+            lower_tolerance, upper_tolerance = None, None
             
-            parentRow = [
-                QStandardItem(formatted_date),
-                QStandardItem(serialNumber),
-                QStandardItem(""),
-                QStandardItem("")
-            ]
-            self.model.appendRow(parentRow)
+        dates_measurements = [
+            (datetime.strptime(data['uploadDate'], '%m/%d/%y'), float(measurement['measurement']))
+            for data in self.selectedPartUploadData
+            for measurement in data['measurements']
+            if measurement['kpcNum'] == kpcNum
+        ]
+        
+        if not dates_measurements:
+            return
+        
+        dates_measurements.sort(key=lambda x: x[0])
+        
+        if dataRange == 'Last':
+            dates_measurements = dates_measurements[-20:]
+        elif dataRange == 'First':
+            dates_measurements = dates_measurements[:20]
+                    
+        x_values = [i for i, _ in enumerate(dates_measurements)]
+        measurements = [dm[1] for dm in dates_measurements]
+        dates = [dm[0].strftime("%m/%d/%Y") for dm in dates_measurements]
+        
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+        
+        ax.plot(x_values, measurements, marker='o')
+        ax.set_xticks(x_values)
+        ax.set_xticklabels(dates, rotation=45, ha='right')
+    
+        ax.set_title(f'Measurement Data Trends for KPC {kpcNum}')
+        ax.set_xlabel('Upload Date')
+        ax.set_ylabel("Measurement Value")
+        
+        if lower_tolerance is not None and upper_tolerance is not None:
+            ax.axhline(y=lower_tolerance, color='g', linestyle='--', label='Lower Tolerance')
+            ax.axhline(y=upper_tolerance, color='b', linestyle='--', label='Upper Tolerance')
             
-            if 'measurements' in uploadData:
+        cursor = mplcursors.cursor(hover=True)
+        @cursor.connect("add")
+        def on_add(sel):
+            idx = sel.target.index
+            data_point = dates_measurements[idx]
+            self.annotation.set_text(
+                f"Date: {data_point[0].strftime('%m/%d/%Y')}"
+                f"Measurement: {data_point[1]}"
+                f"Serial Number: {data_point[2]}"
+            )
             
-                for measurement in uploadData['measurements']:
-                    kpcNum = measurement['kpcNum']
-                    meas = measurement['measurement']
-                    tolerance = self.getTolerance(selectedPartData, kpcNum)
-                    childRow = [
-                        QStandardItem(""),
-                        QStandardItem(""),
-                        QStandardItem(kpcNum),
-                        QStandardItem(tolerance),
-                        QStandardItem(meas)
-                    ]
-                    parentRow[0].appendRow(childRow)
-        self.model.layoutChanged.emit()
+            sel.annotation.get_bbox_patch().set_alpha(0.8)
+            
+        ax.grid(True)
+        self.canvas.draw()
+        
+    def getCpkValue(self, kpcNum):
+        for feature in self.selectedPartData['features']:
+            if feature['kpcNum'] == kpcNum:
+                return feature.get('cpk', None)
+        return None
         
     def getTolerance(self, selectedPartData, kpcNum):
         for feature in selectedPartData['features']:
