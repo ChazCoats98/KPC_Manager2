@@ -44,6 +44,7 @@ from PyQt5.QtGui import (
     QStandardItem
 )
 
+#Main window view of application
 class DashboardView(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -217,6 +218,7 @@ class DashboardView(QMainWindow):
         
         self.model.updateData(updated_parts_data)
         
+#Tree View for parts
 class PartTreeView(QTreeView):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -230,7 +232,7 @@ class PartTreeView(QTreeView):
     def setModel(self, model):
         super().setModel(model)
         
-##Form for adding or updating a part
+#Form for adding or updating a part
 class partForm(QWidget):
     partSubmitted = pyqtSignal()
     def __init__(self, mode="add", partId=None):
@@ -376,7 +378,7 @@ class partForm(QWidget):
         self.close()
         
         
-##Form for uploading data based on part 
+#Form for uploading data based on part 
 class uploadDataForm(QWidget):
     dataSubmitted = pyqtSignal()
     def __init__(self, partId=None):
