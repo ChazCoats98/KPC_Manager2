@@ -1,6 +1,6 @@
 import re
 import hashlib
-import datetime
+from datetime import datetime
 import numpy as np
 from PyQt5.QtWidgets import QMessageBox
 

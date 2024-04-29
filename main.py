@@ -1,14 +1,14 @@
+import sys
 from PyQt5.QtWidgets import QApplication
+from ui import DashboardView
 
-        
-        
-def renderDashboard():
-    global d
-    d = dashboard()
-    d.show()
-    window.close()
+def main():
+    app = QApplication(sys.argv)
     
-app = QApplication(sys.argv)
-window = loginWindow()
-window.show()
-app.exec_()
+    dashboard = DashboardView()
+    dashboard.show()
+    
+    sys.exit(app.exec_())
+    
+if __name__ == "__main__":
+    main()

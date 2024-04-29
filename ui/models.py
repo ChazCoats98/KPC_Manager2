@@ -1,6 +1,8 @@
 from PyQt5.QtCore import QAbstractItemModel, QModelIndex, Qt, QSortFilterProxyModel, QDate
 from PyQt5 import QtGui
+from utils import functions
 
+##Model for main treeview display in DashboardView
 class PartFeaturesModel(QAbstractItemModel):
     def __init__(self, part_data, parent=None):
         super(PartFeaturesModel, self).__init__(parent)
@@ -72,7 +74,7 @@ class PartFeaturesModel(QAbstractItemModel):
                 elif index.column() == 2:
                     date_string = item.get('uploadDate')
                     if date_string:
-                        formatted_date = format_date(date_string)
+                        formatted_date = functions.format_date(date_string)
                     return formatted_date
                 elif index.column() == 3:
                     return item.get('dueDate', '')

@@ -1,12 +1,13 @@
 import shutil
 import re
 from openpyxl import load_workbook
-from utils import database
+from utils import database, functions
 import mplcursors
+from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextContainer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from models import (
+from .models import (
     PartFeaturesModel,
     DateSortProxyModel
     )
@@ -729,7 +730,7 @@ class uploadDataForm(QWidget):
     def calculateAndUpdateCpk(self, partId):
         part_data = database.get_part_by_id(partId)
         if part_data:
-            tolerances = {feature['kpcNum']: parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
+            tolerances = {feature['kpcNum']: functions.parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
             
         measurement_data = database.get_measurements_by_id(partId)
         
@@ -747,7 +748,7 @@ class uploadDataForm(QWidget):
             usl, lsl = tolerances[kpc]
             print(f'usl: {usl} lsl: {lsl}')
             if usl is not None and lsl is not None:
-                cpk = calculate_cpk(data, usl, lsl)
+                cpk = functions.calculate_cpk(data, usl, lsl)
                 if cpk is not None:
                     cpk_values[kpc] = cpk
         print(cpk_values)
@@ -846,7 +847,7 @@ class HistoricalDataView(QWidget):
         
         for uploadData in selectedPartUploadData:
             uploadDate = uploadData['uploadDate']
-            formatted_date = format_date(uploadDate)
+            formatted_date = functions.format_date(uploadDate)
             serialNumber = uploadData['serialNumber']
             
             parentRow = [
@@ -988,7 +989,7 @@ class CpkDashboardView(QWidget):
                 break
         
         if tolerance:
-            lower_tolerance, upper_tolerance = parse_tolerance(tolerance)
+            lower_tolerance, upper_tolerance = functions.parse_tolerance(tolerance)
         else:
             lower_tolerance, upper_tolerance = None, None
             
