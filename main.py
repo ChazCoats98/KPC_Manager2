@@ -679,8 +679,8 @@ class uploadDataForm(QWidget):
         runNumberLabel = QLabel('Run Number:')
         self.runNumberInput = QLineEdit()
         self.runNumberInput.setPlaceholderText('Enter Run Number')
-        layout.addWidget(runNumberLabel, 2, 4)
-        layout.addWidget(self.runNumberInput, 2, 5, 1, 2)
+        layout.addWidget(runNumberLabel, 1, 0)
+        layout.addWidget(self.runNumberInput, 1, 1, 1, 2)
         
         machineLabel = QLabel('Machine:')
         self.machineComboBox = QComboBox()
