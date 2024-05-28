@@ -133,3 +133,20 @@ def check_serial_number(text):
     except Exception as e:
         print(e)
         return False
+    
+def convert_date_format(date_str):
+    date_obj = datetime.strptime(date_str, '%m/%d/%y')
+    
+    new_date_str = datetime.strftime(date_obj, '%m/%d/%Y')
+    
+    return new_date_str
+
+def update_dates():
+    for document in measurements.find():
+        if len(document["uploadDate"]) == 8:
+            new_date = convert_date_format(document["uploadDate"])
+            
+            measurements.update_one({'_id': document["_id"]}, {'$set': {'uploadDate': new_date }})
+        else:
+            print(f'Skipped document {document["_id"]}: date format already correct or unexpected error')
+    print("Date format update completed")

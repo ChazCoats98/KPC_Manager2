@@ -3,3 +3,4 @@ part_data.xlsx
 Results/*
 utils/Templates/*
 utils/Templates/Measurement_Import_Template.xlsx
+.venv/*

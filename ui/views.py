@@ -557,11 +557,7 @@ class uploadDataForm(QWidget):
             
     def openPdfFileDialog(self):
         partNumber = self.partNumber.text()
-        serialNumber = self.serialNumberInput.text()
         initialDir = f'//Server/d/Inspection/CMM Files/Printouts/{partNumber}'
-        
-        if serialNumber:
-            initialDir = f'//Server/d/Inspection/CMM Files/Printouts/{partNumber}/{serialNumber}'
             
         filePath, _ = QFileDialog.getOpenFileName(
             self, 
@@ -578,8 +574,7 @@ class uploadDataForm(QWidget):
                 if isinstance(element, LTTextContainer):
                     for text_line in element:
                         text = text_line.get_text().strip()
-                        measurements = re.findall(r"Diameter_Circle \d+\.\d+\s*\|-?\s*(\d+\.\d+)", text)
-                        print(measurements)
+                        print(text)
         #part_data = database.get_part_by_id(self.partNumber.text())
         #tolerances = {feature['kpcNum']: parse_tolerance(feature['tol']) for feature in part_data['features']}
         #print(tolerances)
@@ -618,15 +613,26 @@ class uploadDataForm(QWidget):
         lot_size = self.lotSizeComboBox.currentText()
         target_row = 2
         template_path = './utils/Templates/Measurement_Import_template.xlsx'
-        upload_date_value = datetime.strftime(date.today(), '%m/%d/%Y')
-        upload_date_file_path = datetime.strftime(date.today(), '%m-%d-%Y')
-        upload_date = datetime.strptime(upload_date_value, '%m/%d/%y')
+        today = datetime.today()
+        upload_date_str = today.strftime('%m/%d/%Y')
+        upload_date_file_path = today.strftime('%m-%d-%Y')
         new_file_path = f'./Results/{part_number}_data_upload_{upload_date_file_path}.xlsx'
-        due_date = upload_date + timedelta(days=90)
+        due_date = today + timedelta(days=90)
         due_date_str = due_date.strftime('%m/%d/%Y')
 
         if not existing_part_data:
             QMessageBox.warning(self, "Error", "Part data not found in database.")
+            return
+        
+        
+        if len(run_number) == 0:
+            QMessageBox.warning(self, "Error", "Please enter a valid run number")
+            return
+        elif len(machine) == 0:
+            QMessageBox.warning(self, "Error", "Please select a valid machine")
+            return
+        elif len(lot_size) == 0:
+            QMessageBox.warning(self, "Error", "Please select a lot size")
             return
         
         shutil.copy(template_path,  new_file_path)
@@ -644,12 +650,12 @@ class uploadDataForm(QWidget):
                 upload_data = {
                     "partNumber": part_number,
                     "serialNumber": serial_number,
-                    "uploadDate": upload_date,
+                    "uploadDate": upload_date_str,
                     "measurements": []
                 }
                 
                 updated_part_data = {
-                        "uploadDate": upload_date_value,
+                        "uploadDate": upload_date_str,
                         "dueDate": due_date_str,
                     }
             
@@ -912,10 +918,6 @@ class CpkDashboardView(QWidget):
         
         layout = QGridLayout()
         
-        self.figure = Figure()
-        self.canvas = FigureCanvas(self.figure)
-        layout.addWidget(self.canvas, 4, 0, 1, 6)
-        
         partLabel = QLabel('Part Number:')
         self.partNumber = QLabel('')
         layout.addWidget(partLabel, 0, 0)
@@ -996,7 +998,7 @@ class CpkDashboardView(QWidget):
             lower_tolerance, upper_tolerance = None, None
             
         dates_measurements = [
-            (datetime.strptime(data['uploadDate'], '%m/%d/%y'), float(measurement['measurement']))
+            (datetime.strptime(data['uploadDate'], '%m/%d/%Y'), float(measurement['measurement']))
             for data in self.selectedPartUploadData
             for measurement in data['measurements']
             if measurement['kpcNum'] == kpcNum
@@ -1023,7 +1025,7 @@ class CpkDashboardView(QWidget):
         ax.set_xticks(x_values)
         ax.set_xticklabels(dates, rotation=45, ha='right')
     
-        ax.set_title(f'Measurement Data Trends for KPC {kpcNum}')
+        ax.set_title(f'Measurement Data Trends for KPC {kpcNum} {tolerance}')
         ax.set_xlabel('Upload Date')
         ax.set_ylabel("Measurement Value")
         
@@ -1089,7 +1091,7 @@ class FeatureForm(QWidget):
         
         opNumLabel = QLabel('Op Number:')
         self.opNumInput = QLineEdit()
-        self.opNumInput.setPlaceholderText('Enter KPC Designation')
+        self.opNumInput.setPlaceholderText('Enter Op Number')
         layout.addWidget(opNumLabel, 0, 2)
         layout.addWidget(self.opNumInput, 1, 2)
         

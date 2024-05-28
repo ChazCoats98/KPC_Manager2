@@ -20,7 +20,7 @@ for (partNumber, serialNumber, uploadDate), group in df.groupby(['partNumber', '
     else: 
         partNumber = str(partNumber)
     serialNumber = str(serialNumber)
-    formattedDate = uploadDate.strftime('%m/%d/%y') if pd.notnull(uploadDate) else uploadDate
+    formattedDate = uploadDate.strftime('%m/%d/%Y') if pd.notnull(uploadDate) else uploadDate
     measurement_data = {
         'partNumber': partNumber,
         'serialNumber': serialNumber,
@@ -30,4 +30,6 @@ for (partNumber, serialNumber, uploadDate), group in df.groupby(['partNumber', '
     }
     print(measurement_data)
     measurements.insert_one(measurement_data)
+
+
 
