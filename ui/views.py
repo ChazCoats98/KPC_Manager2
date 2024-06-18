@@ -534,11 +534,7 @@ class uploadDataForm(QWidget):
             self.scrollAreaWidgetLayout.addWidget(serialNumberInput)
             self.scrollAreaWidgetLayout.addWidget(featureTable)
             
-            print(len(currentInputs['serialNumbers']))
-            print(len(currentInputs['measurements']))
-            
         if len(currentInputs['serialNumbers']) <= lot_size:
-            print('current Inputs length equals lot size')
             for i, text in enumerate(currentInputs['serialNumbers']):
                 self.serialNumberInputs[i].setText(text)
         else:    
@@ -546,7 +542,6 @@ class uploadDataForm(QWidget):
                 self.serialNumberInputs[i].setText(text)
                 
         if len(currentInputs['measurements']) <= lot_size:
-            print('measurements length equals lot size')
             for i, table_data in enumerate(currentInputs['measurements']):
                 for row, row_data in enumerate(table_data):
                     for col, value in enumerate(row_data):
