@@ -3,8 +3,6 @@ import re
 from openpyxl import load_workbook
 from utils import database, functions
 import mplcursors
-from pdfminer.high_level import extract_pages
-from pdfminer.layout import LTTextContainer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from .models import (
@@ -446,7 +444,7 @@ class uploadDataForm(QWidget):
         
         addPartButton = QPushButton('Save Data')
         addPartButton.setStyleSheet("background-color: #3ADC73")
-        addPartButton.clicked.connect(self.submitData)
+        addPartButton.clicked.connect(self.submitData(self))
         layout.addWidget(addPartButton, 7, 2, 1, 3)
         
         updateCpkButton = QPushButton('Calculate CPK')
@@ -478,15 +476,6 @@ class uploadDataForm(QWidget):
         else:
             functions.clearLotInputs(self)
         
-    def checkSerialNumber(self, text):
-        sender = self.sender()
-        exists = database.check_serial_number(text)
-        if exists:
-            sender.setStyleSheet("background-color: red")
-            QMessageBox.warning(self, "Serial Number Invalid", "Data for this serial number has already been uploaded.")
-        else: 
-            sender.setStyleSheet("background-color: white")
-            
     def adjustTableHeight(self, table):
         total_height = table.horizontalHeader().height()
         for i in range(table.rowCount()):
@@ -515,43 +504,7 @@ class uploadDataForm(QWidget):
         )
         if filePath:
             self.extractDataFromPdf(filePath)
-            
-    def extractDataFromPdf(self, filePath):
-        for page_layout in extract_pages(filePath):
-            for element in page_layout:
-                if isinstance(element, LTTextContainer):
-                    for text_line in element:
-                        text = text_line.get_text().strip()
-                        print(text)
-        #part_data = database.get_part_by_id(self.partNumber.text())
-        #tolerances = {feature['kpcNum']: parse_tolerance(feature['tol']) for feature in part_data['features']}
-        #print(tolerances)
-        #try:
-            #reader = PdfReader(filePath)
-            #text = ''
-            #for page in reader.pages:
-                #text += page.extract_text() + '\n'
-            
-            #pattern = re.compile(r'\b\d*\.?\d+\b')
-            #measurements = [float(m) for m in pattern.findall(text)]
-            
-            #matched_measurements = {kpc: [] for kpc in tolerances.keys()}
-            #for measurement in measurements:
-                #for kpc, tolerance in tolerances.items():
-                    #lower, upper = tolerance
-                    #if lower is not None and upper is not None and lower < measurement < upper:
-                       # matched_measurements[kpc].append(measurement)
-                    
-            #print(matched_measurements)
-            #for row in range(self.dataTable.rowCount()):
-                #kpcNum = self.dataTable.item(row, 1).text()
-                #if kpcNum in matched_measurements and matched_measurements[kpcNum]:
-                    #self.dataTable.setItem(row, 4, QTableWidgetItem(str(matched_measurements[kpcNum][0])))
-        #except Exception as e:
-            #print(str(e))
-            #QMessageBox.critical(self, "Error", f"Failed to read PDF: {str(e)}")
-        
-        
+
             
     def submitData(self):
         part_number = self.partNumber.text()
@@ -632,17 +585,9 @@ class uploadDataForm(QWidget):
                         "kpcNum": kpcNum,
                         "measurement": measurement
                     })
-                    
-                database.add_measurement(upload_data)
-            
-            def on_submit_success(is_success):
-                    if is_success:
-                        self.dataSubmitted.emit()
-                        
-            database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
             
             workbook.save(filename=new_file_path)
-            QMessageBox.information(self, "Success", "Data uploaded successfully.")
+
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An unexpected error occurred: {str(e)}")
         try: 
@@ -666,6 +611,15 @@ class uploadDataForm(QWidget):
                 fileName += '.xlsx'
             try: 
                 shutil.move(new_file_path, fileName)
+                database.add_measurement(upload_data)
+            
+                def on_submit_success(is_success):
+                    if is_success:
+                        self.dataSubmitted.emit()
+                        QMessageBox.information(self, "Success", "Data uploaded successfully.")
+                        functions.clearLotInputs(self)
+                        
+                database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
         
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"An error occurred while saving the file: {e}")

@@ -1,9 +1,13 @@
 import re
+import shutil
 import hashlib
 from datetime import datetime
 import numpy as np
+from openpyxl import load_workbook
 from PyQt5.QtWidgets import QMessageBox
 from utils import database, functions
+from pdfminer.high_level import extract_pages
+from pdfminer.layout import LTTextContainer
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -61,8 +65,11 @@ def format_date(date_str):
         raise ValueError('Invalid date format')
     
 
+#_____________________________#
 ##Upload Data View Functions##
+#_____________________________#
 
+#clears lot inputs from table 
 def clearLotInputs(self):
         while self.scrollAreaWidgetLayout.count():
             item = self.scrollAreaWidgetLayout.takeAt(0)
@@ -183,6 +190,166 @@ def checkSerialNumber(self, text, sender):
             QMessageBox.warning(self, "Serial Number Invalid", "Data for this serial number has already been uploaded.")
         else: 
             sender.setStyleSheet("background-color: white")
+            
+#Lets user select a PDF to pull measurement data from. Not functional yet.
+#issues with PDF structure and correctly identifying actual measurements.
+#Plan to fix with ML model
+def extractDataFromPdf(self, filePath):
+        for page_layout in extract_pages(filePath):
+            for element in page_layout:
+                if isinstance(element, LTTextContainer):
+                    for text_line in element:
+                        text = text_line.get_text().strip()
+                        print(text)
+        #part_data = database.get_part_by_id(self.partNumber.text())
+        #tolerances = {feature['kpcNum']: parse_tolerance(feature['tol']) for feature in part_data['features']}
+        #print(tolerances)
+        #try:
+            #reader = PdfReader(filePath)
+            #text = ''
+            #for page in reader.pages:
+                #text += page.extract_text() + '\n'
+            
+            #pattern = re.compile(r'\b\d*\.?\d+\b')
+            #measurements = [float(m) for m in pattern.findall(text)]
+            
+            #matched_measurements = {kpc: [] for kpc in tolerances.keys()}
+            #for measurement in measurements:
+                #for kpc, tolerance in tolerances.items():
+                    #lower, upper = tolerance
+                    #if lower is not None and upper is not None and lower < measurement < upper:
+                        # matched_measurements[kpc].append(measurement)
+                    
+            #print(matched_measurements)
+            #for row in range(self.dataTable.rowCount()):
+                #kpcNum = self.dataTable.item(row, 1).text()
+                #if kpcNum in matched_measurements and matched_measurements[kpcNum]:
+                    #self.dataTable.setItem(row, 4, QTableWidgetItem(str(matched_measurements[kpcNum][0])))
+        #except Exception as e:
+            #print(str(e))
+            #QMessageBox.critical(self, "Error", f"Failed to read PDF: {str(e)}")
+
+#Submits data to database and writes data to Net-Inspect template
+def submitData(self):
+        part_number = self.partNumber.text()
+        existing_part_data = database.get_part_by_id(part_number)
+        machine = self.machineComboBox.currentText()
+        run_number = self.runNumberInput.text()
+        lot_size = self.lotSizeComboBox.currentText()
+        target_row = 2
+        template_path = './utils/Templates/Measurement_Import_template.xlsx'
+        today = datetime.today()
+        upload_date_str = today.strftime('%m/%d/%Y')
+        upload_date_file_path = today.strftime('%m-%d-%Y')
+        new_file_path = f'./Results/{part_number}_data_upload_{upload_date_file_path}.xlsx'
+        due_date = today + timedelta(days=90)
+        due_date_str = due_date.strftime('%m/%d/%Y')
+
+        if not existing_part_data:
+            QMessageBox.warning(self, "Error", "Part data not found in database.")
+            return
+        
+        
+        if len(run_number) == 0:
+            QMessageBox.warning(self, "Error", "Please enter a valid run number")
+            return
+        elif len(machine) == 0:
+            QMessageBox.warning(self, "Error", "Please select a valid machine")
+            return
+        elif len(lot_size) == 0:
+            QMessageBox.warning(self, "Error", "Please select a lot size")
+            return
+        
+        shutil.copy(template_path,  new_file_path)
+        
+        workbook = load_workbook(filename=new_file_path)
+        sheet = workbook.active
+        
+        try:
+            for serial_input, feature_table in zip(self.serialNumberInputs, self.featureTables):
+                serial_number = serial_input.text()
+                if database.check_serial_number(serial_number):
+                    QMessageBox.warning(self, "Duplicate Serial Number", f"Serial Number {serial_number} already in database")
+                    continue
+            
+                upload_data = {
+                    "partNumber": part_number,
+                    "serialNumber": serial_number,
+                    "uploadDate": upload_date_str,
+                    "measurements": []
+                }
+                
+                updated_part_data = {
+                        "uploadDate": upload_date_str,
+                        "dueDate": due_date_str,
+                    }
+            
+                for row in range(feature_table.rowCount()):
+                    feature_number = feature_table.item(row, 0).text()
+                    kpcNum = feature_table.item(row, 1).text()
+                    measurement = feature_table.item(row, 4).text()
+            
+                    if part_number:
+                        sheet.cell(row=target_row, column=1).value = part_number
+                    if feature_number:
+                        sheet.cell(row=target_row, column=2).value = feature_number
+                    if machine:
+                        sheet.cell(row=target_row, column=3).value = machine
+                    if run_number:
+                        sheet.cell(row=target_row, column=4).value = run_number
+                    if lot_size:
+                        sheet.cell(row=target_row, column=5).value = lot_size
+                    if measurement:
+                        sheet.cell(row=target_row, column=6).value = measurement
+                    if serial_number:
+                        sheet.cell(row=target_row, column=8).value = serial_number
+                    target_row += 1
+            
+                    upload_data["measurements"].append({
+                        "kpcNum": kpcNum,
+                        "measurement": measurement
+                    })
+            
+            workbook.save(filename=new_file_path)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {str(e)}")
+        try: 
+            partNumber = self.partNumber.text()
+            basePath = f'//server/D/Quality Control/UPPAP Records/Process Cert + Data Collection/Data points/{partNumber}'
+            fileName, ok = QFileDialog.getSaveFileName(
+                self,
+                "Save Excel File",
+                basePath,
+                "Excel files (*.xlsx)")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
+        
+        if not fileName:
+            QMessageBox.information(self, "Save Canceled", "The save operation was cancelled")
+            return
+        
+        if fileName:
+            if not fileName.endswith('.xlsx'):
+                fileName += '.xlsx'
+            try: 
+                shutil.move(new_file_path, fileName)
+                database.add_measurement(upload_data)
+            
+                def on_submit_success(is_success):
+                    if is_success:
+                        self.dataSubmitted.emit()
+                        QMessageBox.information(self, "Success", "Data uploaded successfully.")
+                        functions.clearLotInputs(self)
+                        
+                database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
+        
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"An error occurred while saving the file: {e}")
+                
+        
+        functions.calculateAndUpdateCpk(self, self.partId)
             
 
 def loginFailed():
