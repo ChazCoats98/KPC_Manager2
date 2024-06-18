@@ -2,7 +2,7 @@ from PyQt5.QtCore import QAbstractItemModel, QModelIndex, Qt, QSortFilterProxyMo
 from PyQt5 import QtGui
 from utils import functions
 
-##Model for main treeview display in DashboardView
+#Model for main treeview display in DashboardView
 class PartFeaturesModel(QAbstractItemModel):
     def __init__(self, part_data, parent=None):
         super(PartFeaturesModel, self).__init__(parent)
@@ -106,7 +106,7 @@ class PartFeaturesModel(QAbstractItemModel):
         self.endResetModel()
         
         
-##Model for sorting by date 
+#Model for sorting by date 
 class DateSortProxyModel(QSortFilterProxyModel):
     def __init__(self, dateColumnIndex, *args, **kwargs):
         super().__init__( *args, **kwargs)

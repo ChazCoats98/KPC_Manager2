@@ -482,6 +482,19 @@ class uploadDataForm(QWidget):
             self.clearLotInputs()
             
     def createLotInputs(self, lot_size):
+        currentInputs = {
+            'serialNumbers': [input.text() for input in self.serialNumberInputs],
+            'measurements': []
+        }
+        
+        for table in self.featureTables:
+            currentTableData = []
+            for row in range(table.rowCount()):
+                rowData = [table.item(row, col).text() if table.item(row, col) else '' for col in range(table.columnCount())]
+                currentTableData.append(rowData)
+            currentInputs['measurements'].append(currentTableData)
+        
+        
         self.clearLotInputs()
         
         partData = database.get_part_by_id(self.partId)
@@ -520,7 +533,30 @@ class uploadDataForm(QWidget):
             
             self.scrollAreaWidgetLayout.addWidget(serialNumberInput)
             self.scrollAreaWidgetLayout.addWidget(featureTable)
-        
+            
+            print(len(currentInputs['serialNumbers']))
+            print(len(currentInputs['measurements']))
+            
+        if len(currentInputs['serialNumbers']) <= lot_size:
+            print('current Inputs length equals lot size')
+            for i, text in enumerate(currentInputs['serialNumbers']):
+                self.serialNumberInputs[i].setText(text)
+        else:    
+            for i, text in enumerate(currentInputs['serialNumbers'][:lot_size]):
+                self.serialNumberInputs[i].setText(text)
+                
+        if len(currentInputs['measurements']) <= lot_size:
+            print('measurements length equals lot size')
+            for i, table_data in enumerate(currentInputs['measurements']):
+                for row, row_data in enumerate(table_data):
+                    for col, value in enumerate(row_data):
+                        self.featureTables[i].setItem(row, col, QTableWidgetItem(value))
+        else:
+            for i, table_data in enumerate(currentInputs['measurements'][:lot_size]):
+                for row, row_data in enumerate(table_data):
+                    for col, value in enumerate(row_data):
+                        self.featureTables[i].setItem(row, col, QTableWidgetItem(value))
+                
     def clearLotInputs(self):
         while self.scrollAreaWidgetLayout.count():
             item = self.scrollAreaWidgetLayout.takeAt(0)
@@ -723,8 +759,6 @@ class uploadDataForm(QWidget):
                 QMessageBox.critical(self, "Error", f"An error occurred while saving the file: {e}")
                 
         
-            
-        self.close()
         self.calculateAndUpdateCpk(self.partId)
     
     def loadPartData(self, selectedPartData):
