@@ -1,11 +1,15 @@
 import re
 import shutil
 import hashlib
-from datetime import datetime
+from datetime import (
+    datetime, 
+    timedelta, 
+    date
+    )
 import numpy as np
 from openpyxl import load_workbook
 from PyQt5.QtWidgets import QMessageBox
-from utils import database, functions
+from utils import database
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextContainer
 from PyQt5.QtWidgets import *
@@ -126,7 +130,7 @@ def createLotInputs(self, lot_size):
                 featureTable.setItem(row, 4, QTableWidgetItem(''))
                 
             
-            self.adjustTableHeight(featureTable)
+            adjustTableHeight(featureTable)
             self.featureTables.append(featureTable)
             
             self.scrollAreaWidgetLayout.addWidget(serialNumberInput)
@@ -150,11 +154,22 @@ def createLotInputs(self, lot_size):
                     for col, value in enumerate(row_data):
                         self.featureTables[i].setItem(row, col, QTableWidgetItem(value))
                         
+#Adjusts table height for lot creation function
+def adjustTableHeight(table):
+        total_height = table.horizontalHeader().height()
+        for i in range(table.rowCount()):
+            total_height += table.rowHeight(i)
+        
+        margin = 4
+        total_height += margin
+        
+        table.setFixedHeight(total_height)
+                        
 #calculate or recalculate CPK on data upload 
 def calculateAndUpdateCpk(self, partId):
         part_data = database.get_part_by_id(partId)
         if part_data:
-            tolerances = {feature['kpcNum']: functions.parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
+            tolerances = {feature['kpcNum']: parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
             
         measurement_data = database.get_measurements_by_id(partId)
         
@@ -172,7 +187,7 @@ def calculateAndUpdateCpk(self, partId):
             usl, lsl = tolerances[kpc]
             print(f'usl: {usl} lsl: {lsl}')
             if usl is not None and lsl is not None:
-                cpk = functions.calculate_cpk(data, usl, lsl)
+                cpk = calculate_cpk(data, usl, lsl)
                 if cpk is not None:
                     cpk_values[kpc] = cpk
         print(cpk_values)
@@ -191,6 +206,19 @@ def checkSerialNumber(self, text, sender):
         else: 
             sender.setStyleSheet("background-color: white")
             
+#opens file dialog for selecting pdf to extract data from
+def openPdfFileDialog(self):
+        partNumber = self.partNumber.text()
+        initialDir = f'//Server/d/Inspection/CMM Files/Printouts/{partNumber}'
+            
+        filePath, _ = QFileDialog.getOpenFileName(
+            self, 
+            "Open PDF File", 
+            initialDir, 
+            "PDF Files (*.pdf)"
+        )
+        if filePath:
+            extractDataFromPdf(self, filePath)
 #Lets user select a PDF to pull measurement data from. Not functional yet.
 #issues with PDF structure and correctly identifying actual measurements.
 #Plan to fix with ML model
@@ -341,7 +369,7 @@ def submitData(self):
                     if is_success:
                         self.dataSubmitted.emit()
                         QMessageBox.information(self, "Success", "Data uploaded successfully.")
-                        functions.clearLotInputs(self)
+                        clearLotInputs(self)
                         
                 database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
         
@@ -349,8 +377,9 @@ def submitData(self):
                 QMessageBox.critical(self, "Error", f"An error occurred while saving the file: {e}")
                 
         
-        functions.calculateAndUpdateCpk(self, self.partId)
+        calculateAndUpdateCpk(self, self.partId)
             
+
 
 def loginFailed():
     dlg = QMessageBox()
