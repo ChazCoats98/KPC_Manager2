@@ -3,6 +3,7 @@ import re
 from openpyxl import load_workbook
 from utils import database, functions
 import mplcursors
+import pyqt5_fugueicons as fugue
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from .models import (
@@ -16,10 +17,7 @@ from datetime import (
     )
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-from PyQt5.QtGui import (
-    QStandardItemModel, 
-    QStandardItem
-)
+from PyQt5.QtGui import *
 
 #Main window view of application
 class DashboardView(QMainWindow):
@@ -31,6 +29,60 @@ class DashboardView(QMainWindow):
         self.mainWidget = QWidget(self)
         self.mainLayout = QVBoxLayout()
         
+        
+        self.tabs = QTabWidget()
+        self.kpcTab = QWidget()
+        self.ppapTab = QWidget()
+        
+        self.tabs.addTab(self.kpcTab, 'KPC Manager')
+        self.tabs.addTab(self.ppapTab, 'PPAP Manager')
+        
+        self.kpcTab.layout = QVBoxLayout()
+        self.ppapTab.layout = QVBoxLayout()
+        
+        toolbar = QToolBar('KPC Manager Toolbar')
+        
+        plusIcon = fugue.icon('plus')
+        editIcon = fugue.icon('pencil')
+        uploadIcon = fugue.icon('blue-document--arrow')
+        historicIcon = fugue.icon('clock-history')
+        cpkIcon = fugue.icon('edit-mathematics')
+        deleteIcon = fugue.icon('cross')
+        
+        addPartButton = QAction(QIcon(plusIcon), 'Add Part', self)
+        addPartButton.setStatusTip('Add part')
+        addPartButton.triggered.connect(self.openPartForm)
+        toolbar.addAction(addPartButton)
+        
+        editPartButton = QAction(QIcon(editIcon), 'Edit Part', self)
+        editPartButton.setStatusTip('Edit part')
+        editPartButton.triggered.connect(self.editSelectedPart)
+        toolbar.addAction(editPartButton)
+        
+        uploadDataButton = QAction(QIcon(uploadIcon), 'Upload Data', self)
+        uploadDataButton.setStatusTip('Upload data for selected part')
+        uploadDataButton.triggered.connect(self.openUploadForm)
+        toolbar.addAction(uploadDataButton)
+        
+        historicDataButton = QAction(QIcon(historicIcon), 'Historic Data', self)
+        historicDataButton.setStatusTip('Display past data uploads')
+        historicDataButton.triggered.connect(self.openHistoricalUploadWindow)
+        toolbar.addAction(historicDataButton)    
+        
+        cpkDataButton = QAction(QIcon(cpkIcon), 'CPK Data', self)
+        cpkDataButton.setStatusTip('Display CPK data for selected part')
+        cpkDataButton.triggered.connect(self.openCpkDashboard)
+        toolbar.addAction(cpkDataButton)      
+        
+        deletePartButton = QAction(QIcon(deleteIcon), 'Delete Part', self)
+        deletePartButton.setStatusTip('Delete selected part')
+        deletePartButton.triggered.connect(self.deleteSelectedPart)
+        toolbar.addAction(deletePartButton)    
+        
+        self.setStatusBar(QStatusBar(self))
+        
+        self.kpcTab.layout.addWidget(toolbar)
+        
         self.tree_view = PartTreeView(self)
         self.part_data = database.get_all_data()
         self.model = PartFeaturesModel(self.part_data)
@@ -40,38 +92,11 @@ class DashboardView(QMainWindow):
         self.tree_view.setSortingEnabled(True)
         self.tree_view.sortByColumn(3, Qt.AscendingOrder)
         self.tree_view.resize(1200,800)
-        self.mainLayout.addWidget(self.tree_view)
+        self.kpcTab.layout.addWidget(self.tree_view)
         
-        self.addPart = QPushButton('Add Part')
-        self.addPart.setStyleSheet("background-color: #3ADC73")
-        self.addPart.clicked.connect(self.openPartForm)
-        self.mainLayout.addWidget(self.addPart)
+        self.kpcTab.setLayout(self.kpcTab.layout)
         
-        self.editPart = QPushButton('Edit Selected Part')
-        self.editPart.setStyleSheet("background-color: #DFDA41")
-        self.editPart.clicked.connect(self.editSelectedPart)
-        self.mainLayout.addWidget(self.editPart)
-        
-        self.uploadPartData = QPushButton('Upload Data for selected Part')
-        self.uploadPartData.setStyleSheet("background-color: #E6A42B")
-        self.uploadPartData.clicked.connect(self.openUploadForm)
-        self.mainLayout.addWidget(self.uploadPartData)
-        
-        self.showHistoricalUploads = QPushButton('Show Past Data Uploads for selected Part')
-        self.showHistoricalUploads.setStyleSheet("background-color: #439EF3")
-        self.showHistoricalUploads.clicked.connect(self.openHistoricalUploadWindow)
-        self.mainLayout.addWidget(self.showHistoricalUploads)
-        
-        self.showCpkData = QPushButton('Show CPK Data for selected Part')
-        self.showCpkData.setStyleSheet("background-color: #439EF3")
-        self.showCpkData.clicked.connect(self.openCpkDashboard)
-        self.mainLayout.addWidget(self.showCpkData)
-        
-        self.deletePart = QPushButton('Delete Part')
-        self.deletePart.setStyleSheet("background-color: #D6575D")
-        self.deletePart.clicked.connect(self.deleteSelectedPart)
-        self.mainLayout.addWidget(self.deletePart)
-        
+        self.mainLayout.addWidget(self.tabs)
         self.mainWidget.setLayout(self.mainLayout)
         self.setCentralWidget(self.mainWidget)
         
@@ -155,6 +180,10 @@ class DashboardView(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
             print(e)
+            
+    def openPpapDashboard(self):
+        ppapDashboard = ppapView()
+        ppapDashboard.show()
         
     def deleteSelectedPart(self):
         index = self.tree_view.currentIndex()
@@ -197,6 +226,7 @@ class DashboardView(QMainWindow):
         
 #Tree View for parts
 class PartTreeView(QTreeView):
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.header().setStretchLastSection(False)
@@ -786,3 +816,64 @@ class FeatureForm(QWidget):
         
     def closeWindow(self):
         self.close()
+        
+        
+class ppapView(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("PPAP Manager")
+        self.resize(1200, 800)
+        
+        self.mainWidget = QWidget(self)
+        self.mainLayout = QVBoxLayout()
+        
+        toolbar = QToolBar('KPC Manager Toolbar')
+        self.addToolBar(toolbar)
+        
+        ppapButton = QAction('PPAP Records', self)
+        ppapButton.setStatusTip('Access PPAP Records')
+        
+        
+        self.tree_view = PartTreeView(self)
+        self.part_data = database.get_all_data()
+        self.model = PartFeaturesModel(self.part_data)
+        self.proxyModel = QSortFilterProxyModel(self)
+        self.proxyModel.setSourceModel(self.model)
+        self.tree_view.setModel(self.proxyModel)
+        self.tree_view.setSortingEnabled(True)
+        self.tree_view.sortByColumn(3, Qt.AscendingOrder)
+        self.tree_view.resize(1200,800)
+        self.mainLayout.addWidget(self.tree_view)
+        
+        self.addPart = QPushButton('Add Part')
+        self.addPart.setStyleSheet("background-color: #3ADC73")
+        self.addPart.clicked.connect(self.openPartForm)
+        self.mainLayout.addWidget(self.addPart)
+        
+        self.editPart = QPushButton('Edit Selected Part')
+        self.editPart.setStyleSheet("background-color: #DFDA41")
+        self.editPart.clicked.connect(self.editSelectedPart)
+        self.mainLayout.addWidget(self.editPart)
+        
+        self.uploadPartData = QPushButton('Upload Data for selected Part')
+        self.uploadPartData.setStyleSheet("background-color: #E6A42B")
+        self.uploadPartData.clicked.connect(self.openUploadForm)
+        self.mainLayout.addWidget(self.uploadPartData)
+        
+        self.showHistoricalUploads = QPushButton('Show Past Data Uploads for selected Part')
+        self.showHistoricalUploads.setStyleSheet("background-color: #439EF3")
+        self.showHistoricalUploads.clicked.connect(self.openHistoricalUploadWindow)
+        self.mainLayout.addWidget(self.showHistoricalUploads)
+        
+        self.showCpkData = QPushButton('Show CPK Data for selected Part')
+        self.showCpkData.setStyleSheet("background-color: #439EF3")
+        self.showCpkData.clicked.connect(self.openCpkDashboard)
+        self.mainLayout.addWidget(self.showCpkData)
+        
+        self.deletePart = QPushButton('Delete Part')
+        self.deletePart.setStyleSheet("background-color: #D6575D")
+        self.deletePart.clicked.connect(self.deleteSelectedPart)
+        self.mainLayout.addWidget(self.deletePart)
+        
+        self.mainWidget.setLayout(self.mainLayout)
+        self.setCentralWidget(self.mainWidget)
