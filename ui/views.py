@@ -99,7 +99,7 @@ class DashboardView(QMainWindow):
         addPpapPartButton = QAction(QIcon(plusIcon), 'Add PPAP Part', self)
         addPpapPartButton.setStatusTip('Add PPAP part')
         addPpapPartButton.triggered.connect(self.openPpapPartForm)
-        kpcToolbar.addAction(addPpapPartButton)
+        ppapToolbar.addAction(addPpapPartButton)
         
         
         self.ppapTab.layout.addWidget(ppapToolbar)
@@ -371,7 +371,7 @@ class ppapPartForm(QWidget):
         super().__init__()
         self.mode = mode
         self.partId = partId
-        self.setWindowTitle("Part")
+        self.setWindowTitle("Add PPAP Part")
         self.resize(800, 600)
         
         layout = QGridLayout()
@@ -391,22 +391,24 @@ class ppapPartForm(QWidget):
         layout.addWidget(self.revInput, 1, 1)
         
         # upload date form
-        udLabel = QLabel('Last Net-Inspect Upload Date:')
-        self.udInput = QLineEdit()
-        self.udInput.setPlaceholderText('Enter upload date')
-        layout.addWidget(udLabel, 0, 2)
-        layout.addWidget(self.udInput, 1, 2)
+        phaseLabel = QLabel('PPAP Package Phase:')
+        self.phaseInput = QLineEdit()
+        self.phaseInput.setPlaceholderText('Enter PPAP Phase')
+        layout.addWidget(phaseLabel, 0, 2)
+        layout.addWidget(self.phaseInput, 1, 2)
+        
+        dueDateLabel = QLabel('PPAP Package Due Date:')
+        self.dueDateInput = QLineEdit()
+        self.dueDateInput.setPlaceholderText('Enter PPAP Due Date')
+        layout.addWidget(dueDateLabel, 0, 3)
+        layout.addWidget(self.dueDateInput, 1, 3)
         
         # Notes form
         notesLabel = QLabel('Notes:')
         self.notesInput = QLineEdit()
         self.notesInput.setPlaceholderText('Enter notes')
-        layout.addWidget(notesLabel, 0, 3)
-        layout.addWidget(self.notesInput, 1, 3)
-        
-        #No current manufacturing flag
-        self.manufacturingCheck = QCheckBox(text="No Current Manufacturing")
-        layout.addWidget(self.manufacturingCheck, 1, 4)
+        layout.addWidget(notesLabel, 0, 4)
+        layout.addWidget(self.notesInput, 1, 4)
         
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
@@ -421,17 +423,7 @@ class ppapPartForm(QWidget):
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
-        layout.addWidget(cancelButton, 7, 0, 1, 5)
-        
-        self.featureTable = QTableWidget()
-        self.featureTable.setColumnCount(6)
-        self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Operation Number", "Tolerance", "Engine"])
-        self.featureTable.horizontalHeader().setStretchLastSection(False)
-        for column in range(self.featureTable.columnCount()):
-            self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
-            
-        layout.addWidget(self.featureTable, 4, 0, 1, 5)
-        
+        layout.addWidget(cancelButton, 7, 0, 1, 5)        
         
         self.setLayout(layout)
         
