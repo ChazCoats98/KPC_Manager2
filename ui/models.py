@@ -191,7 +191,7 @@ class PpapDataModel(QAbstractItemModel):
     
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-            headers = ['Part Number', 'Revision', 'Last Upload Date', 'Upload Due Date', 'notes']
+            headers = ['Part Number', 'Revision', 'Approval Phase', 'Package Due Date', 'notes']
             if section < len(headers):
                 return headers[section]
         return None

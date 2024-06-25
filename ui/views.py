@@ -118,12 +118,12 @@ class DashboardView(QMainWindow):
         self.partForm.show()
         
     def openUploadForm(self):
-        index = self.tree_view.currentIndex()
+        index = self.kpcTreeView.currentIndex()
         if not index.isValid():
             QMessageBox.warning(self, "Selection", "No part selected.")
             return
-        sourceIndex = self.proxyModel.mapToSource(index)
-        part_id = self.model.getPartId(sourceIndex)
+        sourceIndex = self.kpcProxyModel.mapToSource(index)
+        part_id = self.kpcModel.getPartId(sourceIndex)
         if part_id is None:
             QMessageBox.warning(self, "Error", "Failed to identify selected part.")
             return
@@ -140,12 +140,12 @@ class DashboardView(QMainWindow):
         self.uploadForm.show()
         
     def openHistoricalUploadWindow(self):
-        index = self.tree_view.currentIndex()
+        index = self.kpcTreeView.currentIndex()
         if not index.isValid():
             QMessageBox.warning(self, "Error", "No part selected.")
             return
-        sourceIndex = self.proxyModel.mapToSource(index)
-        part_id = self.model.getPartId(sourceIndex)
+        sourceIndex = self.kpcProxyModel.mapToSource(index)
+        part_id = self.kpcModel.getPartId(sourceIndex)
         if part_id is None:
             QMessageBox.warning(self, "Error", "Failed to identify selected part.")
             return
@@ -167,12 +167,12 @@ class DashboardView(QMainWindow):
             print(e)
             
     def openCpkDashboard(self):
-        index = self.tree_view.currentIndex()
+        index = self.kpcTreeView.currentIndex()
         if not index.isValid():
             QMessageBox.warning(self, "Error", "No part selected.")
             return
-        sourceIndex = self.proxyModel.mapToSource(index)
-        part_id = self.model.getPartId(sourceIndex)
+        sourceIndex = self.kpcProxyModel.mapToSource(index)
+        part_id = self.kpcModel.getPartId(sourceIndex)
         if part_id is None:
             QMessageBox.warning(self, "Error", "Failed to identify selected part.")
             return
@@ -198,24 +198,24 @@ class DashboardView(QMainWindow):
         ppapDashboard.show()
         
     def deleteSelectedPart(self):
-        index = self.tree_view.currentIndex()
+        index = self.kpcTreeView.currentIndex()
         if not index.isValid():
             QMessageBox.warning(self, "Selection", "No part selected.")
             return
-        sourceIndex = self.proxyModel.mapToSource(index)
-        part_id = self.model.getPartId(sourceIndex)
+        sourceIndex = self.kpcProxyModel.mapToSource(index)
+        part_id = self.kpcModel.getPartId(sourceIndex)
         if part_id is None:
             QMessageBox.warning(self, "Error", "Failed to identify selected part.")
             return
         database.delete_part(self, part_id)
         
     def editSelectedPart(self):
-        index = self.tree_view.currentIndex()
+        index = self.kpcTreeView.currentIndex()
         if not index.isValid():
             QMessageBox.warning(self, "Selection", "No part selected.")
             return
-        sourceIndex = self.proxyModel.mapToSource(index)
-        part_id = self.model.getPartId(sourceIndex)
+        sourceIndex = self.kpcProxyModel.mapToSource(index)
+        part_id = self.kpcModel.getPartId(sourceIndex)
         if part_id is None:
             QMessageBox.warning(self, "Error", "Failed to identify selected part.")
             return
@@ -844,63 +844,3 @@ class FeatureForm(QWidget):
     def closeWindow(self):
         self.close()
         
-        
-class ppapView(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("PPAP Manager")
-        self.resize(1200, 800)
-        
-        self.mainWidget = QWidget(self)
-        self.mainLayout = QVBoxLayout()
-        
-        toolbar = QToolBar('KPC Manager Toolbar')
-        self.addToolBar(toolbar)
-        
-        ppapButton = QAction('PPAP Records', self)
-        ppapButton.setStatusTip('Access PPAP Records')
-        
-        
-        self.tree_view = PartTreeView(self)
-        self.part_data = database.get_all_data()
-        self.model = PartFeaturesModel(self.part_data)
-        self.proxyModel = QSortFilterProxyModel(self)
-        self.proxyModel.setSourceModel(self.model)
-        self.tree_view.setModel(self.proxyModel)
-        self.tree_view.setSortingEnabled(True)
-        self.tree_view.sortByColumn(3, Qt.AscendingOrder)
-        self.tree_view.resize(1200,800)
-        self.mainLayout.addWidget(self.tree_view)
-        
-        self.addPart = QPushButton('Add Part')
-        self.addPart.setStyleSheet("background-color: #3ADC73")
-        self.addPart.clicked.connect(self.openPartForm)
-        self.mainLayout.addWidget(self.addPart)
-        
-        self.editPart = QPushButton('Edit Selected Part')
-        self.editPart.setStyleSheet("background-color: #DFDA41")
-        self.editPart.clicked.connect(self.editSelectedPart)
-        self.mainLayout.addWidget(self.editPart)
-        
-        self.uploadPartData = QPushButton('Upload Data for selected Part')
-        self.uploadPartData.setStyleSheet("background-color: #E6A42B")
-        self.uploadPartData.clicked.connect(self.openUploadForm)
-        self.mainLayout.addWidget(self.uploadPartData)
-        
-        self.showHistoricalUploads = QPushButton('Show Past Data Uploads for selected Part')
-        self.showHistoricalUploads.setStyleSheet("background-color: #439EF3")
-        self.showHistoricalUploads.clicked.connect(self.openHistoricalUploadWindow)
-        self.mainLayout.addWidget(self.showHistoricalUploads)
-        
-        self.showCpkData = QPushButton('Show CPK Data for selected Part')
-        self.showCpkData.setStyleSheet("background-color: #439EF3")
-        self.showCpkData.clicked.connect(self.openCpkDashboard)
-        self.mainLayout.addWidget(self.showCpkData)
-        
-        self.deletePart = QPushButton('Delete Part')
-        self.deletePart.setStyleSheet("background-color: #D6575D")
-        self.deletePart.clicked.connect(self.deleteSelectedPart)
-        self.mainLayout.addWidget(self.deletePart)
-        
-        self.mainWidget.setLayout(self.mainLayout)
-        self.setCentralWidget(self.mainWidget)
