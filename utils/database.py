@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import QMessageBox
 client: MongoClient = MongoClient()
 kpcdb = client['KPCManager']
 parts = kpcdb['parts']
+ppap = kpcdb['ppap']
 measurements = kpcdb['measurements']
 
 def get_all_data():
@@ -77,6 +78,27 @@ def save_cpk_values(partId, cpk_values):
                 {'$set': {'features.$.cpk': cpk_values[kpc_num]}}
             )
     print(f'CPK values updated for part number {partId}')
+    
+def get_all_ppap_data():
+    data = ppap.find()
+    return data
+    
+def submit_new_ppap_part(new_ppap_data, callback=None):
+    try: 
+        result = ppap.insert_one(new_ppap_data)
+        
+        if result.acknowledged:
+            print("Upload success")
+            if callback:
+                callback(True)
+        else: 
+            print("upload failure")
+            if callback: 
+                callback(False)
+    except Exception as e:
+        print(e)
+        if callback: 
+            callback(False)
     
 def add_measurement(upload_data):   
     try:

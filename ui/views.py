@@ -404,11 +404,22 @@ class ppapPartForm(QWidget):
         layout.addWidget(self.dueDateInput, 1, 3)
         
         # Notes form
-        notesLabel = QLabel('Notes:')
+        notesLabel = QLabel('PPAP Number:')
         self.notesInput = QLineEdit()
-        self.notesInput.setPlaceholderText('Enter notes')
+        self.notesInput.setPlaceholderText('Enter PPAP Number')
         layout.addWidget(notesLabel, 0, 4)
         layout.addWidget(self.notesInput, 1, 4)
+        
+        self.elementsTable = QTableWidget()
+        self.elementsTable.setColumnCount(5)
+        self.elementsTable.setHorizontalHeaderLabels(['Element', 'Document', 'Element Submitted?', 'Date Submitted', 'Approval Status'])
+        self.elementsTable.horizontalHeader().setStretchLastSection(False)
+        for column in range(self.elementsTable.columnCount()):
+            self.elementsTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+            
+        self.elementsTable.setItem(0, 0, QTableWidgetItem('Element 1'))
+            
+        layout.addWidget(self.elementsTable, 4, 0, 1, 5)
         
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
@@ -430,17 +441,6 @@ class ppapPartForm(QWidget):
     def addFeature(self):
             self.featureForm = FeatureForm(self)
             self.featureForm.show()
-    
-    def loadPartData(self, selectedPartData):
-        self.partInput.setText(selectedPartData['partNumber'])
-        self.revInput.setText(selectedPartData['rev'])
-        self.udInput.setText(selectedPartData['uploadDate'])
-        self.notesInput.setText(selectedPartData['notes'])
-        self.manufacturingCheck.setChecked(selectedPartData.get('currentManufacturing', False))
-        
-        self.featureTable.setRowCount(0)
-        for feature in selectedPartData['features']:
-            functions.addFeatureToTable(self, feature)
     
     def closeWindow(self):
         self.close()
