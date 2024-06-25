@@ -8,7 +8,8 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from .models import (
     PartFeaturesModel,
-    DateSortProxyModel
+    DateSortProxyModel,
+    PpapDataModel
     )
 from datetime import (
     datetime, 
@@ -83,18 +84,29 @@ class DashboardView(QMainWindow):
         
         self.kpcTab.layout.addWidget(toolbar)
         
-        self.tree_view = PartTreeView(self)
+        self.kpcTreeView = PartTreeView(self)
         self.part_data = database.get_all_data()
-        self.model = PartFeaturesModel(self.part_data)
-        self.proxyModel = QSortFilterProxyModel(self)
-        self.proxyModel.setSourceModel(self.model)
-        self.tree_view.setModel(self.proxyModel)
-        self.tree_view.setSortingEnabled(True)
-        self.tree_view.sortByColumn(3, Qt.AscendingOrder)
-        self.tree_view.resize(1200,800)
-        self.kpcTab.layout.addWidget(self.tree_view)
+        self.kpcModel = PartFeaturesModel(self.part_data)
+        self.kpcProxyModel = QSortFilterProxyModel(self)
+        self.kpcProxyModel.setSourceModel(self.kpcModel)
+        self.kpcTreeView.setModel(self.kpcProxyModel)
+        self.kpcTreeView.setSortingEnabled(True)
+        self.kpcTreeView.sortByColumn(3, Qt.AscendingOrder)
+        self.kpcTreeView.resize(1200,800)
+        self.kpcTab.layout.addWidget(self.kpcTreeView)
+        
+        self.ppapTreeView = ppapTreeView(self)
+        self.ppapModel = PpapDataModel(self.part_data)
+        self.ppapProxyModel = QSortFilterProxyModel(self)
+        self.ppapProxyModel.setSourceModel(self.ppapModel)
+        self.ppapTreeView.setModel(self.ppapProxyModel)
+        self.ppapTreeView.setSortingEnabled(True)
+        self.ppapTreeView.sortByColumn(3, Qt.AscendingOrder)
+        self.ppapTreeView.resize(1200,800)
+        self.ppapTab.layout.addWidget(self.ppapTreeView)
         
         self.kpcTab.setLayout(self.kpcTab.layout)
+        self.ppapTab.setLayout(self.ppapTab.layout)
         
         self.mainLayout.addWidget(self.tabs)
         self.mainWidget.setLayout(self.mainLayout)
@@ -238,6 +250,21 @@ class PartTreeView(QTreeView):
         
     def setModel(self, model):
         super().setModel(model)
+        
+class ppapTreeView(QTreeView):
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.header().setStretchLastSection(False)
+        self.header().setSectionResizeMode(QHeaderView.Stretch)
+        self.setUniformRowHeights(True)
+            
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        
+    def setModel(self, model):
+        super().setModel(model)
+        
         
 #Form for adding or updating a part
 class partForm(QWidget):
