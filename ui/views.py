@@ -41,7 +41,8 @@ class DashboardView(QMainWindow):
         self.kpcTab.layout = QVBoxLayout()
         self.ppapTab.layout = QVBoxLayout()
         
-        toolbar = QToolBar('KPC Manager Toolbar')
+        kpcToolbar = QToolBar('KPC Manager Toolbar')
+        ppapToolbar = QToolBar('PPAP Manager Toolbar')
         
         plusIcon = fugue.icon('plus')
         editIcon = fugue.icon('pencil')
@@ -53,36 +54,36 @@ class DashboardView(QMainWindow):
         addPartButton = QAction(QIcon(plusIcon), 'Add Part', self)
         addPartButton.setStatusTip('Add part')
         addPartButton.triggered.connect(self.openPartForm)
-        toolbar.addAction(addPartButton)
+        kpcToolbar.addAction(addPartButton)
         
         editPartButton = QAction(QIcon(editIcon), 'Edit Part', self)
         editPartButton.setStatusTip('Edit part')
         editPartButton.triggered.connect(self.editSelectedPart)
-        toolbar.addAction(editPartButton)
+        kpcToolbar.addAction(editPartButton)
         
         uploadDataButton = QAction(QIcon(uploadIcon), 'Upload Data', self)
         uploadDataButton.setStatusTip('Upload data for selected part')
         uploadDataButton.triggered.connect(self.openUploadForm)
-        toolbar.addAction(uploadDataButton)
+        kpcToolbar.addAction(uploadDataButton)
         
         historicDataButton = QAction(QIcon(historicIcon), 'Historic Data', self)
         historicDataButton.setStatusTip('Display past data uploads')
         historicDataButton.triggered.connect(self.openHistoricalUploadWindow)
-        toolbar.addAction(historicDataButton)    
+        kpcToolbar.addAction(historicDataButton)    
         
         cpkDataButton = QAction(QIcon(cpkIcon), 'CPK Data', self)
         cpkDataButton.setStatusTip('Display CPK data for selected part')
         cpkDataButton.triggered.connect(self.openCpkDashboard)
-        toolbar.addAction(cpkDataButton)      
+        kpcToolbar.addAction(cpkDataButton)      
         
         deletePartButton = QAction(QIcon(deleteIcon), 'Delete Part', self)
         deletePartButton.setStatusTip('Delete selected part')
         deletePartButton.triggered.connect(self.deleteSelectedPart)
-        toolbar.addAction(deletePartButton)    
+        kpcToolbar.addAction(deletePartButton)    
         
         self.setStatusBar(QStatusBar(self))
         
-        self.kpcTab.layout.addWidget(toolbar)
+        self.kpcTab.layout.addWidget(kpcToolbar)
         
         self.kpcTreeView = PartTreeView(self)
         self.part_data = database.get_all_data()
@@ -94,6 +95,14 @@ class DashboardView(QMainWindow):
         self.kpcTreeView.sortByColumn(3, Qt.AscendingOrder)
         self.kpcTreeView.resize(1200,800)
         self.kpcTab.layout.addWidget(self.kpcTreeView)
+        
+        addPpapPartButton = QAction(QIcon(plusIcon), 'Add PPAP Part', self)
+        addPpapPartButton.setStatusTip('Add PPAP part')
+        addPpapPartButton.triggered.connect(self.openPpapPartForm)
+        kpcToolbar.addAction(addPpapPartButton)
+        
+        
+        self.ppapTab.layout.addWidget(ppapToolbar)
         
         self.ppapTreeView = ppapTreeView(self)
         self.ppapModel = PpapDataModel(self.part_data)
@@ -114,6 +123,11 @@ class DashboardView(QMainWindow):
         
     def openPartForm(self):
         self.partForm = partForm()
+        self.partForm.partSubmitted.connect(self.refreshTreeView)
+        self.partForm.show()
+        
+    def openPpapPartForm(self):
+        self.partForm = ppapPartForm()
         self.partForm.partSubmitted.connect(self.refreshTreeView)
         self.partForm.show()
         
@@ -192,10 +206,6 @@ class DashboardView(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
             print(e)
-            
-    def openPpapDashboard(self):
-        ppapDashboard = ppapView()
-        ppapDashboard.show()
         
     def deleteSelectedPart(self):
         index = self.kpcTreeView.currentIndex()
@@ -268,6 +278,94 @@ class ppapTreeView(QTreeView):
         
 #Form for adding or updating a part
 class partForm(QWidget):
+    partSubmitted = pyqtSignal()
+    def __init__(self, mode="add", partId=None):
+        super().__init__()
+        self.mode = mode
+        self.partId = partId
+        self.setWindowTitle("Part")
+        self.resize(800, 600)
+        
+        layout = QGridLayout()
+        
+        # Part number form 
+        partLabel = QLabel('Part Number:')
+        self.partInput = QLineEdit()
+        self.partInput.setPlaceholderText('Enter part number')
+        layout.addWidget(partLabel, 0, 0)
+        layout.addWidget(self.partInput, 1, 0)
+        
+        # Part revision form
+        revLabel = QLabel('Revision Letter:')
+        self.revInput = QLineEdit()
+        self.revInput.setPlaceholderText('Enter revision letter')
+        layout.addWidget(revLabel, 0, 1)
+        layout.addWidget(self.revInput, 1, 1)
+        
+        # upload date form
+        udLabel = QLabel('Last Net-Inspect Upload Date:')
+        self.udInput = QLineEdit()
+        self.udInput.setPlaceholderText('Enter upload date')
+        layout.addWidget(udLabel, 0, 2)
+        layout.addWidget(self.udInput, 1, 2)
+        
+        # Notes form
+        notesLabel = QLabel('Notes:')
+        self.notesInput = QLineEdit()
+        self.notesInput.setPlaceholderText('Enter notes')
+        layout.addWidget(notesLabel, 0, 3)
+        layout.addWidget(self.notesInput, 1, 3)
+        
+        #No current manufacturing flag
+        self.manufacturingCheck = QCheckBox(text="No Current Manufacturing")
+        layout.addWidget(self.manufacturingCheck, 1, 4)
+        
+        # Submit button Button
+        addFeatureButton = QPushButton('Add Feature')
+        addFeatureButton.clicked.connect(self.addFeature)
+        layout.addWidget(addFeatureButton, 5, 1, 1, 3)
+        
+        addPartButton = QPushButton('Save Part')
+        addPartButton.setStyleSheet("background-color: #3ADC73")
+        addPartButton.clicked.connect(lambda: functions.submitPart(self))
+        layout.addWidget(addPartButton, 6, 0, 1, 5)
+        
+        cancelButton = QPushButton('Cancel')
+        cancelButton.setStyleSheet("background-color: #D6575D")
+        cancelButton.clicked.connect(self.closeWindow)
+        layout.addWidget(cancelButton, 7, 0, 1, 5)
+        
+        self.featureTable = QTableWidget()
+        self.featureTable.setColumnCount(6)
+        self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Operation Number", "Tolerance", "Engine"])
+        self.featureTable.horizontalHeader().setStretchLastSection(False)
+        for column in range(self.featureTable.columnCount()):
+            self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+            
+        layout.addWidget(self.featureTable, 4, 0, 1, 5)
+        
+        
+        self.setLayout(layout)
+        
+    def addFeature(self):
+            self.featureForm = FeatureForm(self)
+            self.featureForm.show()
+    
+    def loadPartData(self, selectedPartData):
+        self.partInput.setText(selectedPartData['partNumber'])
+        self.revInput.setText(selectedPartData['rev'])
+        self.udInput.setText(selectedPartData['uploadDate'])
+        self.notesInput.setText(selectedPartData['notes'])
+        self.manufacturingCheck.setChecked(selectedPartData.get('currentManufacturing', False))
+        
+        self.featureTable.setRowCount(0)
+        for feature in selectedPartData['features']:
+            functions.addFeatureToTable(self, feature)
+    
+    def closeWindow(self):
+        self.close()
+        
+class ppapPartForm(QWidget):
     partSubmitted = pyqtSignal()
     def __init__(self, mode="add", partId=None):
         super().__init__()
