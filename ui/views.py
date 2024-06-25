@@ -11,6 +11,7 @@ from .models import (
     DateSortProxyModel,
     PpapDataModel
     )
+from .widgets import RadioButtonTableWidget
 from datetime import (
     datetime, 
     timedelta, 
@@ -417,7 +418,13 @@ class ppapPartForm(QWidget):
         for column in range(self.elementsTable.columnCount()):
             self.elementsTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
             
+        for i in range(12):
+            self.elementsTable.insertRow(i)
+        
         self.elementsTable.setItem(0, 0, QTableWidgetItem('Element 1'))
+        self.elementsTable.setItem(0, 1, QTableWidgetItem('Design Records'))
+        el1Radio = RadioButtonTableWidget()
+        self.elementsTable.setCellWidget(0, 2, el1Radio)
             
         layout.addWidget(self.elementsTable, 4, 0, 1, 5)
         
