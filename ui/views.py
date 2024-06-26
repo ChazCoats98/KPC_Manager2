@@ -245,7 +245,7 @@ class DashboardView(QMainWindow):
     def refreshTreeView(self):
         updated_parts_data = database.get_all_data()
         
-        self.model.updateData(updated_parts_data)
+        self.kpcModel.updateData(updated_parts_data)
         
 #Tree View for parts
 class PartTreeView(QTreeView):

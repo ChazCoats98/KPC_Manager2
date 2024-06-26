@@ -7,6 +7,7 @@ from datetime import (
     date
     )
 import numpy as np
+from scipy import stats
 from openpyxl import load_workbook
 from PyQt5.QtWidgets import QMessageBox
 from utils import database
@@ -530,9 +531,33 @@ def parse_tolerance(tolerance):
     
     return None, None
 
+def find_data_distribution(data):
+    distributions = ['norm', 'expon', 'lognorm', 'weibull_min', 'weibull_max', 'gamma']
+    best_fit_distribution = None
+    best_fit_statistic = float('inf')
+    best_params = None
+    
+    for dist_name in distributions:
+        dist = getattr(stats, dist_name)
+        try: 
+            params = dist.fit(data)
+            ad_statistic, _, _ = stats.anderson(data, dist_name)
+            if ad_statistic < best_fit_statistic:
+                best_fit_statistic = ad_statistic
+                best_fit_distribution = dist_name
+                best_params = params
+        except Exception as e:
+            print(f'Could not fit distribution {dist_name}: {e}')
+            continue
+    
+    return best_fit_distribution, best_params
+
 def calculate_cpk(data, usl=None, lsl=None, target=None):
     if not data or len(data) < 2 or np.isnan(data).any() or np.isinf(data).any():
         return None
+    
+    best_fit_distribution, best_params = find_data_distribution(data)
+    
     sigma = np.std(data, ddof=1)
     mean = np.mean(data)
     
