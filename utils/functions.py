@@ -7,7 +7,7 @@ from datetime import (
     date
     )
 import numpy as np
-from scipy import stats
+from scipy.stats import (anderson, boxcox, norm, lognorm, expon, weibull_min, genextreme, gamma, logistic,fisk, kstest, weibull_max, gumbel_l, gumbel_r)
 from openpyxl import load_workbook
 from PyQt5.QtWidgets import QMessageBox
 from utils import database
@@ -296,6 +296,8 @@ def calculateAndUpdateCpk(self, partId):
             usl, lsl = tolerances[kpc]
             print(f'usl: {usl} lsl: {lsl}')
             if usl is not None and lsl is not None:
+                if usl < lsl:
+                    usl, lsl = lsl, usl
                 cpk = calculate_cpk(data, usl, lsl)
                 if cpk is not None:
                     cpk_values[kpc] = cpk
@@ -532,55 +534,124 @@ def parse_tolerance(tolerance):
     return None, None
 
 def find_data_distribution(data):
-    distributions = ['norm', 'expon', 'lognorm', 'weibull_min', 'weibull_max', 'gamma']
-    best_fit_distribution = None
-    best_fit_statistic = float('inf')
-    best_params = None
+    data = np.array(data)
     
-    for dist_name in distributions:
-        dist = getattr(stats, dist_name)
-        try: 
+    distributions = {
+        'norm': norm,
+        'boxcox': None,
+        'lognorm': lognorm,
+        'expon': expon,
+        'weibull_min': weibull_min,
+        'weibull_max': weibull_max,
+        'genextreme': genextreme,
+        'gamma': gamma,
+        'logistic': logistic,
+        'fisk': fisk,
+        'gumbel_l': gumbel_l,
+        'gumbel_r': gumbel_r
+    }
+    
+    results = []
+    
+    for dist_name, dist in distributions.items():
+        if dist_name == 'boxcox':
+            if np.any(data <= 0):
+                continue
+            transformed_data, lmbda = boxcox(data)
+            try:
+                statistic, critical_values, _ = anderson(transformed_data, dist='norm')
+                results.append((dist_name, statistic, {'lambda': lmbda}))
+            except ValueError:
+                continue
+        else:
             params = dist.fit(data)
-            ad_statistic, _, _ = stats.anderson(data, dist_name)
-            if ad_statistic < best_fit_statistic:
-                best_fit_statistic = ad_statistic
-                best_fit_distribution = dist_name
-                best_params = params
-        except Exception as e:
-            print(f'Could not fit distribution {dist_name}: {e}')
-            continue
+            if dist_name in ['norm', 'expon', 'weibull_min', 'logistic']:
+                try:
+                    statistic, critical_values, _ = anderson(data, dist=dist_name)
+                    results.append((dist_name, statistic, params))
+                except ValueError:
+                    continue
+            else:
+                d, p_value = kstest(data, dist_name, args=params)
+                results.append((dist_name, d, params))
+        
+    results.sort(key=lambda x: x[1])
     
-    return best_fit_distribution, best_params
+    best_fit = results[0]
+    
+    best_fit_dist_name = best_fit[0]
+    best_fit_dist = distributions[best_fit_dist_name]
+    best_fit_params = best_fit[2]
+    
+    print(best_fit_dist_name)
+    print(best_fit_params)
+    
+    return best_fit_dist_name, best_fit_dist, best_fit_params
+
+def calculate_percentile(dist, params, percentile):
+    return dist.ppf(percentile / 100, *params)
 
 def calculate_cpk(data, usl=None, lsl=None, target=None):
     if not data or len(data) < 2 or np.isnan(data).any() or np.isinf(data).any():
         return None
     
-    best_fit_distribution, best_params = find_data_distribution(data)
+    dist_name, dist, params = find_data_distribution(data)
+    if dist is None:
+        print('No suitable distribution found.')
     
-    sigma = np.std(data, ddof=1)
-    mean = np.mean(data)
+    if dist_name == 'boxcox':
+        transformed_data, lmbda = boxcox(data)
+        norm_params = norm.fit(transformed_data)
+        highest_transformed_percentile_value = calculate_percentile(norm, norm_params, 99.865)
+        lowest_transformed_percentile_value = calculate_percentile(norm, norm_params, .135)
+        median_transformed_percentile_value = calculate_percentile(norm, norm_params, 50)
+    else: 
+        lowest_percentile_value = calculate_percentile(dist, params, .135)
+        highest_percentile_value = calculate_percentile(dist, params, 99.865)
+        median_percentile_value = calculate_percentile(dist, params, 50)
     
-    if sigma == 0:
-        return None
+    print(f'.135th percentile {lowest_percentile_value} 99.865th percentile {highest_percentile_value} 50th percentile {median_percentile_value}')
     
-    cpk = None
-    if usl is None and lsl is not None:
-        cpk = (mean - lsl) / (3 * sigma)
-        return cpk
-    elif usl is not None and lsl is not None:
-        cpk_upper = (usl - mean) / (3 * sigma)
-        cpk_lower = (mean - lsl) / (3 * sigma)
-        cpk = min(cpk_upper, cpk_lower)
-    elif usl is not None:
-        cpk = (usl - mean) / (3 * sigma)
-    elif lsl is not None:
-        cpk = (mean - lsl) / (3 * sigma)
+    if dist_name == 'norm':
+        sigma = np.std(data)
+        mean = np.mean(data)
     
-    if target is not None:
-        if usl is not None:
-            cpk = (usl - target) / (3 * sigma)
-        elif lsl is not None:
-            cpk = (target - lsl) / (3 * sigma)
-    return cpk
-
+        if sigma == 0:
+            return None
+    
+        if usl is None and lsl is not None:
+            cpl = (mean - lsl) / (3 * sigma)
+            return cpl
+        elif usl is not None and lsl is not None:
+            cpu = (usl - mean) / (3 * sigma)
+            cpl = (mean - lsl) / (3 * sigma)
+            cpk = min(cpu, cpl)
+            return cpk
+        elif lsl is None and usl is not None:
+            cpu = (usl - mean) / (3 * sigma)
+            return cpu
+        
+    elif dist_name == 'boxcox':
+        if usl is None and lsl is not None:
+            ppl = (median_transformed_percentile_value - lsl) / (median_transformed_percentile_value - lowest_transformed_percentile_value)
+            return ppl
+        elif usl is not None and lsl is not None:
+            ppu = (usl - median_transformed_percentile_value) / (highest_transformed_percentile_value - median_transformed_percentile_value)
+            ppl = (median_transformed_percentile_value - lsl) / (median_transformed_percentile_value - lowest_transformed_percentile_value)
+            return min(ppu, ppl)
+        elif lsl is None and usl is not None:
+            ppu = (usl - median_transformed_percentile_value) / (highest_transformed_percentile_value - median_transformed_percentile_value)
+            return ppu
+        
+    else:
+        if usl is None and lsl is not None:
+            ppl = (median_percentile_value - lsl) / (median_percentile_value - lowest_percentile_value)
+            return ppl
+        elif usl is not None and lsl is not None:
+            ppu = (usl - median_percentile_value) / (highest_percentile_value - median_percentile_value)
+            ppl = (median_percentile_value - lsl) / (median_percentile_value - lowest_percentile_value)
+            return min(ppu, ppl)
+        elif lsl is None and usl is not None:
+            ppu = (usl - median_percentile_value) / (highest_percentile_value - median_percentile_value)
+            return ppu
+        
