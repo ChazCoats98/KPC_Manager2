@@ -1,13 +1,17 @@
 import re
+import os
+import tempfile
 import shutil
 import hashlib
+import win32com.client
+import time
 from datetime import (
     datetime, 
     timedelta, 
     date
     )
 import numpy as np
-from scipy.stats import (anderson, boxcox, norm, lognorm, expon, weibull_min, genextreme, gamma, logistic,fisk, kstest, weibull_max, gumbel_l, gumbel_r)
+from scipy.stats import anderson, boxcox, norm, lognorm, expon, weibull_min, genextreme, gamma, logistic,fisk, kstest, weibull_max, gumbel_l, gumbel_r
 from openpyxl import load_workbook
 from PyQt5.QtWidgets import QMessageBox
 from utils import database
@@ -273,41 +277,7 @@ def adjustTableHeight(table):
         total_height += margin
         
         table.setFixedHeight(total_height)
-                        
-#calculate or recalculate CPK on data upload 
-def calculateAndUpdateCpk(self, partId):
-        part_data = database.get_part_by_id(partId)
-        if part_data:
-            tolerances = {feature['kpcNum']: parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
-            
-        measurement_data = database.get_measurements_by_id(partId)
-        
-        measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
-        
-        if measurement_data:
-            for entry in measurement_data:
-                for measurement in entry.get('measurements', []):
-                    kpcNum = measurement.get('kpcNum')
-                    if kpcNum and kpcNum in measurements_by_kpc:
-                        measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
-        print(measurements_by_kpc)            
-        cpk_values = {}
-        for kpc, data in measurements_by_kpc.items():
-            usl, lsl = tolerances[kpc]
-            print(f'usl: {usl} lsl: {lsl}')
-            if usl is not None and lsl is not None:
-                if usl < lsl:
-                    usl, lsl = lsl, usl
-                cpk = calculate_cpk(data, usl, lsl)
-                if cpk is not None:
-                    cpk_values[kpc] = cpk
-        print(cpk_values)
-                
-        if cpk_values:
-            formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
-            database.save_cpk_values(partId, formatted_cpk_values)
-            self.dataSubmitted.emit()
-            
+
 #Checks user input serial number against database to prevent duplicates
 def checkSerialNumber(self, text, sender):
         exists = database.check_serial_number(text)
@@ -516,6 +486,34 @@ def passMismatch():
     dlg.setText('Passwords do not match')
     dlg.exec()
     
+#calculate or recalculate CPK on data upload 
+def calculateAndUpdateCpk(self, partId):
+        part_data = database.get_part_by_id(partId)
+        if part_data:
+            tolerances = {feature['kpcNum']: parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
+            
+        measurement_data = database.get_measurements_by_id(partId)
+        
+        measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
+        
+        if measurement_data:
+            for entry in measurement_data:
+                for measurement in entry.get('measurements', []):
+                    kpcNum = measurement.get('kpcNum')
+                    if kpcNum and kpcNum in measurements_by_kpc:
+                        measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
+        
+        dist_data = calculate_dist(measurements_by_kpc, tolerances)
+        
+        kpc, low, med, high = calculate_percentile(dist_data)
+        
+        print(f'KPC: {kpc} .135th Percentile: {low} 50th Percentile: {med} 99.865th Percentile: {high}')
+                
+        #if cpk_values:
+            #formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
+            #database.save_cpk_values(partId, formatted_cpk_values)
+            #self.dataSubmitted.emit()
+    
 def parse_tolerance(tolerance):
     range_pattern = re.compile(r'(?<!\S)(\d*\.\d+)\s*-\s*(\d*\.\d+)(?!\S)')
     specific_tolerance_pattern = re.compile(r'([A-Za-z ]+)\s+(\d*\.\d+)')
@@ -533,86 +531,235 @@ def parse_tolerance(tolerance):
     
     return None, None
 
-def find_data_distribution(data):
-    data = np.array(data)
+def calculate_dist(measurements, tolerances):
+    mtb = win32com.client.Dispatch("Mtb.Application.1")
+    mtb.UserInterface.Visible = False
+    project = mtb.ActiveProject
+    worksheet = project.ActiveWorksheet
+    columns = worksheet.Columns
     
-    distributions = {
-        'norm': norm,
-        'boxcox': None,
-        'lognorm': lognorm,
-        'expon': expon,
-        'weibull_min': weibull_min,
-        'weibull_max': weibull_max,
-        'genextreme': genextreme,
-        'gamma': gamma,
-        'logistic': logistic,
-        'fisk': fisk,
-        'gumbel_l': gumbel_l,
-        'gumbel_r': gumbel_r
-    }
     
-    results = []
+    dist_data = {}
+    for i, (kpc, data) in enumerate(measurements.items()):
+        usl, lsl = tolerances[kpc]
+        if usl is not None and lsl is not None:
+            if usl < lsl:
+                usl, lsl = lsl, usl
+                
+            column = columns.Add(None, None, 1)
+            column.SetData(data)
+            
+            command = f"DCapa C{i+1} 1; All; BoxCox; Johnson 0.10; RDescriptive; RFitTests; REstimate."
+            project.ExecuteCommand(command)
     
-    for dist_name, dist in distributions.items():
-        if dist_name == 'boxcox':
-            if np.any(data <= 0):
-                continue
-            transformed_data, lmbda = boxcox(data)
-            try:
-                statistic, critical_values, _ = anderson(transformed_data, dist='norm')
-                results.append((dist_name, statistic, {'lambda': lmbda}))
-            except ValueError:
-                continue
-        else:
-            params = dist.fit(data)
-            if dist_name in ['norm', 'expon', 'weibull_min', 'logistic']:
-                try:
-                    statistic, critical_values, _ = anderson(data, dist=dist_name)
-                    results.append((dist_name, statistic, params))
-                except ValueError:
-                    continue
-            else:
-                d, p_value = kstest(data, dist_name, args=params)
-                results.append((dist_name, d, params))
-        
-    results.sort(key=lambda x: x[1])
-    
-    best_fit = results[0]
-    
-    best_fit_dist_name = best_fit[0]
-    best_fit_dist = distributions[best_fit_dist_name]
-    best_fit_params = best_fit[2]
-    
-    print(best_fit_dist_name)
-    print(best_fit_params)
-    
-    return best_fit_dist_name, best_fit_dist, best_fit_params
+            time.sleep(2)
 
-def calculate_percentile(dist, params, percentile):
-    return dist.ppf(percentile / 100, *params)
+            commands = project.Commands
+            lastCommand = commands.Item(commands.Count)
+            outputs = lastCommand.Outputs
+
+            results = []
+
+            for i in range(1, outputs.Count +1):
+                output = outputs.Item(i)
+                results.append(output.Text)
+    
+            formattedResults = "\n".join(results)
+            
+            parsed_gof = parse_goodness_of_fit(formattedResults)
+            parsed_params = parse_distribution_params(formattedResults)
+            
+            best_fit = determine_best_fit(parsed_gof)
+            best_fit_params = parsed_params[best_fit]
+            
+            dist_data[kpc] = {
+                'dist': best_fit,
+                'params': best_fit_params
+            }
+
+    temp_file = os.path.join(tempfile.gettempdir(), 'temp_project.mpjx')
+    project.SaveAs(temp_file)
+
+    mtb.Quit()
+    return dist_data
+
+def parse_goodness_of_fit(output):
+    gof_start = re.search(r'Distribution\s+AD\s+P\s+LRT P', output).end()
+    gof_end = re.search(r"ML Estimates of Distribution Parameters", output).start()
+    gof_table = output[gof_start:gof_end].strip()
+    parsed_data = {}
+    for line in gof_table.strip().split("\n"):
+        parts = re.split(r'\s{2,}', line)
+        
+        distribution = parts[0].strip()
+        AD, P, LRT_P = None, None, None
+        if distribution.startswith('3-Parameter Lognormal') or distribution.startswith('3-Parameter Gamma') or distribution.startswith('3-Parameter Loglogistic'):
+            AD, LRT_P = float(parts[-3]), parts[-1].strip()
+            LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
+        elif distribution.startswith('2-Parameter Exponential') or distribution.startswith('3-Parameter Weibull'):
+            AD, P, LRT_P = float(parts[-3]), parts[-2], parts[-1].strip()
+            LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
+        else:
+            AD, P = float(parts[-2]), parts[-1].strip()
+            P = float(P) if P.replace('.', '', 1).isdigit() else P
+            
+        if isinstance(P, str) and (P.startswith('>') or P.startswith('<')):
+            P = float(P[1:])
+        if isinstance(LRT_P, str) and (LRT_P.startswith('>') or LRT_P.startswith('<')):
+            LRT_P = float(LRT_P[1:])
+            
+        parsed_data[distribution] = {
+            'AD': AD,
+            'P': P,
+            'LRT_P': LRT_P,
+        }
+        
+        unwanted_dist = ['Box-Cox Transformation', 'Johnson Transformation']
+        filtered_data = {dist: values for dist, values in parsed_data.items() if dist not in unwanted_dist}
+        
+    return filtered_data
+
+def parse_distribution_params(output):
+    params_start = re.search(r"Distribution\s+Location\s+Shape\s+Scale\s+Threshold", output).end()
+    params_table = output[params_start:].strip()
+    
+    parsed_data = []
+    for line in params_table.strip().split('\n'):
+        parts = re.split(r'\s{2,}', line)
+
+        distribution = parts[0].strip()
+        location, shape, scale, threshold = None, None, None, None
+        
+        if distribution.startswith('Normal') or distribution.startswith('Box-Cox Transformation') or distribution.startswith('Lognormal') or distribution.startswith('Smallest Extreme Value') or distribution.startswith('Largest Extreme Value') or distribution.startswith('Logistic') or distribution.startswith('Loglogistic') or distribution.startswith('Johnson Transformation'):
+            location, scale = float(parts[-2]), float(parts[-1])
+        elif distribution.startswith('Exponential'):
+            scale = float(parts[-1])
+        elif distribution.startswith('2-Parameter Exponential'):
+            scale, threshold = float(parts[-2]), float(parts[-1])
+        elif distribution.startswith('Weibull'):
+            shape, scale = float(parts[-2]), float(parts[-1])
+        elif distribution.startswith('3-Parameter Weibull') or distribution.startswith('3-Parameter Gamma'):
+            shape, scale, threshold = float(parts[-3]), float(parts[-2]), float(parts[-1])
+        elif distribution.startswith('3-Parameter Loglogistic') or distribution.startswith('3-Parameter Lognormal'):
+            location, scale, threshold = float(parts[-3]), float(parts[-2]), float(parts[-1])
+            
+        parsed_data.append((distribution, location, shape, scale, threshold))
+    
+    
+    parsed_dict = {}
+    for line in parsed_data:
+        distribution = line[0].strip()
+        location, shape, scale, threshold = line[1], line[2], line[3], line[4]
+        parsed_dict[distribution] = {
+            'location': location,
+            'shape': shape,
+            'scale': scale,
+            'threshold': threshold
+        }
+        
+    return parsed_dict
+
+def determine_best_fit(gof_results):
+    best_fit = None
+    best_ad = float('inf')
+    
+    for distribution, values in gof_results.items():
+        ad_stat = values['AD']
+        p_value = values['P']
+        
+        if ad_stat < best_ad:
+            best_ad = ad_stat
+            best_fit = distribution
+            
+        elif ad_stat == best_ad:
+            if isinstance(p_value, float):
+                best_p_value = gof_results[best_fit]['P']
+                if isinstance(best_p_value, float) and p_value > best_p_value:
+                    best_fit = distribution
+    return best_fit
+
+def calculate_percentile(dist_data):
+    for kpc, data in dist_data.items():
+        distribution = data['dist']
+        params = data['params']
+        if distribution.startswith('Normal'):
+            low = norm.ppf(.00135, loc=params['location'], scale=params['scale'])
+            med = norm.ppf(.5, loc=params['location'], scale=params['scale'])
+            high = norm.ppf(.99865, loc=params['location'], scale=params['scale'])
+            return kpc, low, med, high
+        elif distribution.startswith('Lognormal'):
+            low = lognorm.ppf(.00135, params['scale'], loc=0, scale=params['location'])
+            med = lognorm.ppf(.5, params['scale'], loc=0, scale=params['location'])
+            high = lognorm.ppf(.99865, params['scale'], loc=0, scale=params['location'])
+            return kpc, low, med, high
+        elif distribution.startswith('3 Parameter Lognormal'):
+            low = lognorm.ppf(.00135, params['scale'], loc=params['location'], scale=params['scale'])
+            med = lognorm.ppf(.5, params['scale'], loc=params['location'], scale=params['scale'])
+            high = lognorm.ppf(.99865, params['scale'], loc=params['location'], scale=params['scale'])
+            return kpc, low, med, high
+        elif distribution.startswith('Exponential'):
+            low = expon.ppf(.00135, loc=0, scale=params['scale'])
+            med = expon.ppf(.00135, loc=0, scale=params['scale'])
+            high = expon.ppf(.00135, loc=0, scale=params['scale'])
+            return kpc, low, med, high
+        elif distribution.startswith('2-Parameter Exponential'):
+            low = expon.ppf(.00135, loc=params['threshold'], scale=params['scale'])
+            med = expon.ppf(.5, loc=params['threshold'], scale=params['scale'])
+            high = expon.ppf(.99865, loc=params['threshold'], scale=params['scale'])
+            return kpc, low, med, high
+        elif distribution.startswith('Weibull'):
+            low = weibull_min.ppf(.00135, params['shape'], loc=0, scale=params['scale'])
+            med = weibull_min.ppf(.5, params['shape'], loc=0, scale=params['scale'])
+            high = weibull_min.ppf(.99865, params['shape'], loc=0, scale=params['scale'])
+            return kpc, low, med, high
+        elif distribution.startswith('3-Parameter Weibull'):
+            low =  weibull_min.ppf(.00135, params['shape'], loc=params['threshold'], scale=params['scale'])
+            med =  weibull_min.ppf(.5, params['shape'], loc=params['threshold'], scale=params['scale'])
+            high =  weibull_min.ppf(.99865, params['shape'], loc=params['threshold'], scale=params['scale'])
+            return kpc, low, med, high
+        elif distribution.startswith('Gamma'):
+            low = gamma.ppf(.00135, params['shape'], loc=params['threshold'], scale=params['scale'])
+            med = gamma.ppf(.5, params['shape'], loc=params['threshold'], scale=params['scale'])
+            high = gamma.ppf(.99865, params['shape'], loc=params['threshold'], scale=params['scale'])
+            return kpc, low, med, high
+        elif distribution.startswith('Logistic'):
+            low = logistic.ppf(.00135, loc=params['location'], scale=params['scale'])
+            med = logistic.ppf(.5, loc=params['location'], scale=params['scale'])
+            high = logistic.ppf(.99865, loc=params['location'], scale=params['scale'])
+            return kpc, low, med, high
+        elif distribution.startswith('Largest Extreme Value'):
+            low = gumbel_r.ppf(.00135, loc=params['location'], scale=params['scale'])
+            med = gumbel_r.ppf(.5, loc=params['location'], scale=params['scale'])
+            high = gumbel_r.ppf(.99865, loc=params['location'], scale=params['scale'])
+        elif distribution.startswith('Loglogistic'):
+            low = fisk.ppf(.00135, c=0, loc=params['location'], scale=params['scale'])
+            med= fisk.ppf(.5, c=0, loc=params['location'], scale=params['scale'])
+            high = fisk.ppf(.99865, c=0, loc=params['location'], scale=params['scale'])
+        elif distribution.startswith('3-Parameter Loglogistic'):
+            low = fisk.ppf(.00135, c=0, loc=params['threshold'], scale=params['scale']) + params['location']
+            med= fisk.ppf(.5, c=0, loc=params['threshold'], scale=params['scale']) + params['location']
+            high = fisk.ppf(.99865, c=0, loc=params['threshold'], scale=params['scale']) + params['location']
+        else:
+            raise ValueError(f"Unsupported distribution: {distribution}")
 
 def calculate_cpk(data, usl=None, lsl=None, target=None):
     if not data or len(data) < 2 or np.isnan(data).any() or np.isinf(data).any():
         return None
     
-    dist_name, dist, params = find_data_distribution(data)
+    mtb_res = find_data_distribution(data)
+    
+    gof = parse_goodness_of_fit(mtb_res)
+    parsed_params = parse_distribution_params(mtb_res)
+    
+    dist = determine_best_fit(gof)
+    params = parsed_params[dist]
+    
     if dist is None:
         print('No suitable distribution found.')
-    
-    if dist_name == 'boxcox':
-        transformed_data, lmbda = boxcox(data)
-        norm_params = norm.fit(transformed_data)
-        highest_transformed_percentile_value = calculate_percentile(norm, norm_params, 99.865)
-        lowest_transformed_percentile_value = calculate_percentile(norm, norm_params, .135)
-        median_transformed_percentile_value = calculate_percentile(norm, norm_params, 50)
     else: 
-        lowest_percentile_value = calculate_percentile(dist, params, .135)
-        highest_percentile_value = calculate_percentile(dist, params, 99.865)
-        median_percentile_value = calculate_percentile(dist, params, 50)
+        low, med, high = calculate_percentile(dist, params)
     
-    print(f'.135th percentile {lowest_percentile_value} 99.865th percentile {highest_percentile_value} 50th percentile {median_percentile_value}')
-    
-    if dist_name == 'norm':
+    if dist == 'norm':
         sigma = np.std(data)
         mean = np.mean(data)
     
@@ -631,27 +778,15 @@ def calculate_cpk(data, usl=None, lsl=None, target=None):
             cpu = (usl - mean) / (3 * sigma)
             return cpu
         
-    elif dist_name == 'boxcox':
-        if usl is None and lsl is not None:
-            ppl = (median_transformed_percentile_value - lsl) / (median_transformed_percentile_value - lowest_transformed_percentile_value)
-            return ppl
-        elif usl is not None and lsl is not None:
-            ppu = (usl - median_transformed_percentile_value) / (highest_transformed_percentile_value - median_transformed_percentile_value)
-            ppl = (median_transformed_percentile_value - lsl) / (median_transformed_percentile_value - lowest_transformed_percentile_value)
-            return min(ppu, ppl)
-        elif lsl is None and usl is not None:
-            ppu = (usl - median_transformed_percentile_value) / (highest_transformed_percentile_value - median_transformed_percentile_value)
-            return ppu
-        
     else:
         if usl is None and lsl is not None:
-            ppl = (median_percentile_value - lsl) / (median_percentile_value - lowest_percentile_value)
+            ppl = (med - lsl) / (med - low)
             return ppl
         elif usl is not None and lsl is not None:
-            ppu = (usl - median_percentile_value) / (highest_percentile_value - median_percentile_value)
-            ppl = (median_percentile_value - lsl) / (median_percentile_value - lowest_percentile_value)
+            ppu = (usl - med) / (high - med)
+            ppl = (med - lsl) / (med - low)
             return min(ppu, ppl)
         elif lsl is None and usl is not None:
-            ppu = (usl - median_percentile_value) / (highest_percentile_value - median_percentile_value)
+            ppu = (usl - med) / (high - med)
             return ppu
         
