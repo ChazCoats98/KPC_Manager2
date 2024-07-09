@@ -505,9 +505,9 @@ def calculateAndUpdateCpk(self, partId):
         
         dist_data = calculate_dist(measurements_by_kpc, tolerances)
         
-        kpc, low, med, high = calculate_percentile(dist_data)
+        percentiles = calculate_percentile(dist_data)
         
-        print(f'KPC: {kpc} .135th Percentile: {low} 50th Percentile: {med} 99.865th Percentile: {high}')
+        print(percentiles)
                 
         #if cpk_values:
             #formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
@@ -537,7 +537,6 @@ def calculate_dist(measurements, tolerances):
     project = mtb.ActiveProject
     worksheet = project.ActiveWorksheet
     columns = worksheet.Columns
-    
     
     dist_data = {}
     for i, (kpc, data) in enumerate(measurements.items()):
@@ -614,7 +613,7 @@ def parse_goodness_of_fit(output):
             'LRT_P': LRT_P,
         }
         
-        unwanted_dist = ['Box-Cox Transformation', 'Johnson Transformation']
+        unwanted_dist = ['Box-Cox Transformation', 'Johnson Transformation', '3-Parameter Loglogistic', '3-Parameter Lognormal', 'Loglogistic', '3-Parameter Weibull', '3-Parameter Gamma']
         filtered_data = {dist: values for dist, values in parsed_data.items() if dist not in unwanted_dist}
         
     return filtered_data
@@ -679,6 +678,8 @@ def determine_best_fit(gof_results):
     return best_fit
 
 def calculate_percentile(dist_data):
+    print(dist_data)
+    results = {}
     for kpc, data in dist_data.items():
         distribution = data['dist']
         params = data['params']
@@ -686,62 +687,64 @@ def calculate_percentile(dist_data):
             low = norm.ppf(.00135, loc=params['location'], scale=params['scale'])
             med = norm.ppf(.5, loc=params['location'], scale=params['scale'])
             high = norm.ppf(.99865, loc=params['location'], scale=params['scale'])
-            return kpc, low, med, high
         elif distribution.startswith('Lognormal'):
             low = lognorm.ppf(.00135, params['scale'], loc=0, scale=params['location'])
             med = lognorm.ppf(.5, params['scale'], loc=0, scale=params['location'])
             high = lognorm.ppf(.99865, params['scale'], loc=0, scale=params['location'])
-            return kpc, low, med, high
-        elif distribution.startswith('3 Parameter Lognormal'):
-            low = lognorm.ppf(.00135, params['scale'], loc=params['location'], scale=params['scale'])
-            med = lognorm.ppf(.5, params['scale'], loc=params['location'], scale=params['scale'])
-            high = lognorm.ppf(.99865, params['scale'], loc=params['location'], scale=params['scale'])
-            return kpc, low, med, high
+        elif distribution.startswith('3-Parameter Lognormal'):
+            low = lognorm.ppf(.00135, s=1, loc=params['location'], scale=params['scale']) + params['location']
+            med = lognorm.ppf(.5, s=1, loc=params['location'], scale=params['scale']) + params['location']
+            high = lognorm.ppf(.99865, s=1, loc=params['location'], scale=params['scale']) + params['location']
         elif distribution.startswith('Exponential'):
             low = expon.ppf(.00135, loc=0, scale=params['scale'])
             med = expon.ppf(.00135, loc=0, scale=params['scale'])
             high = expon.ppf(.00135, loc=0, scale=params['scale'])
-            return kpc, low, med, high
         elif distribution.startswith('2-Parameter Exponential'):
             low = expon.ppf(.00135, loc=params['threshold'], scale=params['scale'])
             med = expon.ppf(.5, loc=params['threshold'], scale=params['scale'])
             high = expon.ppf(.99865, loc=params['threshold'], scale=params['scale'])
-            return kpc, low, med, high
         elif distribution.startswith('Weibull'):
             low = weibull_min.ppf(.00135, params['shape'], loc=0, scale=params['scale'])
             med = weibull_min.ppf(.5, params['shape'], loc=0, scale=params['scale'])
             high = weibull_min.ppf(.99865, params['shape'], loc=0, scale=params['scale'])
-            return kpc, low, med, high
         elif distribution.startswith('3-Parameter Weibull'):
             low =  weibull_min.ppf(.00135, params['shape'], loc=params['threshold'], scale=params['scale'])
             med =  weibull_min.ppf(.5, params['shape'], loc=params['threshold'], scale=params['scale'])
             high =  weibull_min.ppf(.99865, params['shape'], loc=params['threshold'], scale=params['scale'])
-            return kpc, low, med, high
         elif distribution.startswith('Gamma'):
             low = gamma.ppf(.00135, params['shape'], loc=params['threshold'], scale=params['scale'])
             med = gamma.ppf(.5, params['shape'], loc=params['threshold'], scale=params['scale'])
             high = gamma.ppf(.99865, params['shape'], loc=params['threshold'], scale=params['scale'])
-            return kpc, low, med, high
         elif distribution.startswith('Logistic'):
             low = logistic.ppf(.00135, loc=params['location'], scale=params['scale'])
             med = logistic.ppf(.5, loc=params['location'], scale=params['scale'])
             high = logistic.ppf(.99865, loc=params['location'], scale=params['scale'])
-            return kpc, low, med, high
         elif distribution.startswith('Largest Extreme Value'):
             low = gumbel_r.ppf(.00135, loc=params['location'], scale=params['scale'])
             med = gumbel_r.ppf(.5, loc=params['location'], scale=params['scale'])
             high = gumbel_r.ppf(.99865, loc=params['location'], scale=params['scale'])
+        elif distribution.startswith('Smallest Extreme Value'):
+            low = gumbel_l.ppf(.00135, loc=params['location'], scale=params['scale'])
+            med = gumbel_l.ppf(.5, loc=params['location'], scale=params['scale'])
+            high = gumbel_l.ppf(.99865, loc=params['location'], scale=params['scale'])
         elif distribution.startswith('Loglogistic'):
-            low = fisk.ppf(.00135, c=0, loc=params['location'], scale=params['scale'])
-            med= fisk.ppf(.5, c=0, loc=params['location'], scale=params['scale'])
-            high = fisk.ppf(.99865, c=0, loc=params['location'], scale=params['scale'])
+            low = fisk.ppf(.00135, c=1, loc=params['location'], scale=params['scale'])
+            med= fisk.ppf(.5, c=1, loc=params['location'], scale=params['scale'])
+            high = fisk.ppf(.99865, c=1, loc=params['location'], scale=params['scale'])
         elif distribution.startswith('3-Parameter Loglogistic'):
-            low = fisk.ppf(.00135, c=0, loc=params['threshold'], scale=params['scale']) + params['location']
-            med= fisk.ppf(.5, c=0, loc=params['threshold'], scale=params['scale']) + params['location']
-            high = fisk.ppf(.99865, c=0, loc=params['threshold'], scale=params['scale']) + params['location']
+            low = fisk.ppf(.00135, c=1, loc=params['threshold'], scale=params['scale']) + params['location']
+            med= fisk.ppf(.5, c=1, loc=params['threshold'], scale=params['scale']) + params['location']
+            high = fisk.ppf(.99865, c=1, loc=params['threshold'], scale=params['scale']) + params['location']
         else:
             raise ValueError(f"Unsupported distribution: {distribution}")
-
+        
+        results[kpc] = {
+            '.135th Percentile': low,
+            '50th Percentile': med,
+            '99.865th Percentile': high,
+        }
+    return results
+        
 def calculate_cpk(data, usl=None, lsl=None, target=None):
     if not data or len(data) < 2 or np.isnan(data).any() or np.isinf(data).any():
         return None
