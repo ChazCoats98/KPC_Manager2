@@ -491,7 +491,7 @@ def calculateAndUpdateCpk(self, partId):
         part_data = database.get_part_by_id(partId)
         if part_data:
             tolerances = {feature['kpcNum']: parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
-            
+    
         measurement_data = database.get_measurements_by_id(partId)
         
         measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
@@ -503,11 +503,28 @@ def calculateAndUpdateCpk(self, partId):
                     if kpcNum and kpcNum in measurements_by_kpc:
                         measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
         
-        dist_data = calculate_dist(measurements_by_kpc, tolerances)
+        dist_data, percentiles = calculate_dist(measurements_by_kpc, tolerances)
+        for kpc, data in dist_data.items():
+            print(kpc)
+            print(data['dist'])
+            if data['dist'] == 'Normal':
+                usl, lsl = tolerances[kpc]
+                if usl is not None and lsl is not None:
+                    if usl < lsl:
+                        usl, lsl = lsl, usl
+                measurement = measurements_by_kpc[kpc]
+                sigma = np.std(measurement, ddof=1)
+                mean = np.mean(measurement)
+                
+                cpu = (usl - mean) / (3 * sigma)
+                cpl = (mean - lsl) / (3 * sigma)
+                
+                cpk = min(cpl, cpu)
+                print(f'KPC: {kpc} CPK: {cpk}')
         
-        percentiles = calculate_percentile(dist_data)
+        cpk_values = calculate_cpk(percentiles, tolerances)
+        print(cpk_values)
         
-        print(percentiles)
                 
         #if cpk_values:
             #formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
@@ -533,12 +550,14 @@ def parse_tolerance(tolerance):
 
 def calculate_dist(measurements, tolerances):
     mtb = win32com.client.Dispatch("Mtb.Application.1")
-    mtb.UserInterface.Visible = False
+    mtb.UserInterface.Visible = True
     project = mtb.ActiveProject
     worksheet = project.ActiveWorksheet
     columns = worksheet.Columns
     
     dist_data = {}
+    p_res = {}
+    d = 1
     for i, (kpc, data) in enumerate(measurements.items()):
         usl, lsl = tolerances[kpc]
         if usl is not None and lsl is not None:
@@ -548,7 +567,7 @@ def calculate_dist(measurements, tolerances):
             column = columns.Add(None, None, 1)
             column.SetData(data)
             
-            command = f"DCapa C{i+1} 1; All; BoxCox; Johnson 0.10; RDescriptive; RFitTests; REstimate."
+            command = f"DCapa C{d} 1; All; BoxCox; Johnson 0.10; RDescriptive; RFitTests; REstimate."
             project.ExecuteCommand(command)
     
             time.sleep(2)
@@ -571,16 +590,30 @@ def calculate_dist(measurements, tolerances):
             best_fit = determine_best_fit(parsed_gof)
             best_fit_params = parsed_params[best_fit]
             
+            percentiles = [.00135, .5, .99865]
+            perc_dict = {}
+            for percentile in percentiles:
+                p_column = columns.Add(None, d, 1)
+                p_column.SetData(percentile)
+                percent = f"InvCDF C{d + 1} C{d + 2}; {best_fit} {best_fit_params['location']} {best_fit_params['scale']}."
+                project.ExecuteCommand(percent)
+                o_column = columns.Item(d+2).GetData(1)
+                perc_dict[f'{(percentile * 100):.3f}th Percentile'] = o_column
+    
+                d = d + 2
+            p_res[kpc] = perc_dict
+            d = d + 1
+    
             dist_data[kpc] = {
                 'dist': best_fit,
                 'params': best_fit_params
             }
-
+    print(p_res)
     temp_file = os.path.join(tempfile.gettempdir(), 'temp_project.mpjx')
     project.SaveAs(temp_file)
 
     mtb.Quit()
-    return dist_data
+    return dist_data, p_res
 
 def parse_goodness_of_fit(output):
     gof_start = re.search(r'Distribution\s+AD\s+P\s+LRT P', output).end()
@@ -626,7 +659,7 @@ def parse_distribution_params(output):
     for line in params_table.strip().split('\n'):
         parts = re.split(r'\s{2,}', line)
 
-        distribution = parts[0].strip()
+        distribution = parts[0].strip().rstrip('*')
         location, shape, scale, threshold = None, None, None, None
         
         if distribution.startswith('Normal') or distribution.startswith('Box-Cox Transformation') or distribution.startswith('Lognormal') or distribution.startswith('Smallest Extreme Value') or distribution.startswith('Largest Extreme Value') or distribution.startswith('Logistic') or distribution.startswith('Loglogistic') or distribution.startswith('Johnson Transformation'):
@@ -739,57 +772,39 @@ def calculate_percentile(dist_data):
             raise ValueError(f"Unsupported distribution: {distribution}")
         
         results[kpc] = {
+            'dist': distribution,
             '.135th Percentile': low,
             '50th Percentile': med,
             '99.865th Percentile': high,
         }
     return results
         
-def calculate_cpk(data, usl=None, lsl=None, target=None):
-    if not data or len(data) < 2 or np.isnan(data).any() or np.isinf(data).any():
-        return None
-    
-    mtb_res = find_data_distribution(data)
-    
-    gof = parse_goodness_of_fit(mtb_res)
-    parsed_params = parse_distribution_params(mtb_res)
-    
-    dist = determine_best_fit(gof)
-    params = parsed_params[dist]
-    
-    if dist is None:
-        print('No suitable distribution found.')
-    else: 
-        low, med, high = calculate_percentile(dist, params)
-    
-    if dist == 'norm':
-        sigma = np.std(data)
-        mean = np.mean(data)
-    
-        if sigma == 0:
-            return None
-    
-        if usl is None and lsl is not None:
-            cpl = (mean - lsl) / (3 * sigma)
-            return cpl
-        elif usl is not None and lsl is not None:
-            cpu = (usl - mean) / (3 * sigma)
-            cpl = (mean - lsl) / (3 * sigma)
-            cpk = min(cpu, cpl)
-            return cpk
-        elif lsl is None and usl is not None:
-            cpu = (usl - mean) / (3 * sigma)
-            return cpu
-        
-    else:
+def calculate_cpk(percentiles, tolerances):
+    ppk_values = {}
+    print(percentiles)
+    for kpc, percentile in percentiles.items():
+        usl, lsl = tolerances[kpc]
+        if usl is not None and lsl is not None:
+            if usl < lsl:
+                usl, lsl = lsl, usl
+            
+        low = percentile['0.135th Percentile']
+        med = percentile['50.000th Percentile']
+        high = percentile['99.865th Percentile']
+        print(low, med, high)
         if usl is None and lsl is not None:
             ppl = (med - lsl) / (med - low)
-            return ppl
+            ppu = None
         elif usl is not None and lsl is not None:
             ppu = (usl - med) / (high - med)
             ppl = (med - lsl) / (med - low)
-            return min(ppu, ppl)
         elif lsl is None and usl is not None:
             ppu = (usl - med) / (high - med)
-            return ppu
+            ppl = None
+            
+        ppk = min(ppu, ppl)
         
+        ppk_values[kpc] = {
+            'cpk':ppk
+        }
+    return ppk_values
