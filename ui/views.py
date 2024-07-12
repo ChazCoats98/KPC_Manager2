@@ -473,6 +473,9 @@ class uploadDataForm(QWidget):
             spinner_text='Calculating CPK. This may take a while...',
         )
         
+        self.worker = None
+        self.thread = None
+        
         self.scrollArea = QScrollArea(self)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollArea.setWidgetResizable(True)
@@ -555,16 +558,22 @@ class uploadDataForm(QWidget):
         QCoreApplication.processEvents()
         
         self.thread = QThread()
-        self.worker = functions.Worker(self.partId)
+        self.worker = Worker(self.partId)
         self.worker.moveToThread(self.thread)
         
         self.thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.on_worker_finished)
         self.worker.finished.connect(self.worker.deleteLater)
+        self.worker.finished.connect(self.thread.quit)
         self.worker.finished.connect(self.thread.deleteLater)    
-        self.worker.finished.connect(self.spinner.stop)
         
         self.thread.start()
+        
+    def on_worker_finished(self):
+        print("Worker finished, stopping spinner")
+        self.spinner.stop()
+        self.worker = None
+        self.thread = None
         
     def onLotSizeChange(self, text):
         if text.isdigit():
@@ -583,6 +592,16 @@ class uploadDataForm(QWidget):
         
     def closeWindow(self):
         self.close()
+        
+    def closeEvent(self, event):
+        print('close event called')
+        if self.thread and self.thread.isRunning():
+            print("Stopping running thread before closing")
+            self.thread.quit()
+            loop = QEventLoop()
+            self.thread.finished.connect(loop.quit)
+            loop.exec_()
+        event.accept()
         
         
 ##View for previous part upload data
@@ -960,4 +979,16 @@ class FeatureForm(QWidget):
         
     def closeWindow(self):
         self.close()
+        
+        
+class Worker(QObject):
+    finished = pyqtSignal()
+    
+    def __init__(self, partId, parent=None):
+        super().__init__(parent)
+        self.partId = partId
+        
+    def run(self): 
+        functions.calculateAndUpdateCpk(self)
+        self.finished.emit()
         
