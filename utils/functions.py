@@ -504,65 +504,62 @@ def passMismatch():
     dlg.exec()
     
 #calculate or recalculate CPK on data upload 
-def calculateAndUpdateCpk(self, partId):
-    spinner = WaitingSpinner(
-    self,
-    True,
-    True,
-    roundness=100.0,
-    fade=53.87,
-    radius=15,
-    lines=107,
-    line_length=20,
-    line_width=6,
-    speed=0.75,
-    color=(60, 145, 235)
-    )
-    spinner.start()
-    part_data = database.get_part_by_id(partId)
-    if part_data:
-        tolerances = {feature['kpcNum']: parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
+
+class Worker(QObject):
+    finished = pyqtSignal()
     
-    measurement_data = database.get_measurements_by_id(partId)
+    def __init__(self, partId, parent=None):
+        super().__init__(parent)
+        self.partId = partId
         
-    measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
+    def run(self):
+        partId = self.partId
+        part_data = database.get_part_by_id(partId)
+        if part_data:
+            tolerances = {feature['kpcNum']: self.parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
+    
+        measurement_data = database.get_measurements_by_id(partId)
         
-    if measurement_data:
-        for entry in measurement_data:
-            for measurement in entry.get('measurements', []):
-                kpcNum = measurement.get('kpcNum')
-                if kpcNum and kpcNum in measurements_by_kpc:
-                    measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
+        measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
         
-    dist_data, percentiles = calculate_dist(measurements_by_kpc, tolerances)
-    cpk_values = {}
-    for kpc, data in dist_data.items():
-        print(kpc)
-        print(data['dist'])
-        if data['dist'] == 'Normal':
-            usl, lsl = tolerances[kpc]
-            if usl is not None and lsl is not None:
-                if usl < lsl:
-                    usl, lsl = lsl, usl
-            measurement = measurements_by_kpc[kpc]
-            sigma = np.std(measurement, ddof=1)
-            mean = np.mean(measurement)
+        if measurement_data:
+            for entry in measurement_data:
+                for measurement in entry.get('measurements', []):
+                    kpcNum = measurement.get('kpcNum')
+                    if kpcNum and kpcNum in measurements_by_kpc:
+                        measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
+        
+        #dist_data, percentiles = calculate_dist(measurements_by_kpc, tolerances)
+        cpk_values = {}
+        time.sleep(2)
+        print('calculating cpk')
+        #for kpc, data in dist_data.items():
+            #print(kpc)
+            #print(data['dist'])
+            #if data['dist'] == 'Normal':
+                #usl, lsl = tolerances[kpc]
+                #if usl is not None and lsl is not None:
+                    #if usl < lsl:
+                        #usl, lsl = lsl, usl
+                #measurement = measurements_by_kpc[kpc]
+                #sigma = np.std(measurement, ddof=1)
+                #mean = np.mean(measurement)
                 
-            cpu = (usl - mean) / (3 * sigma)
-            cpl = (mean - lsl) / (3 * sigma)
+                #cpu = (usl - mean) / (3 * sigma)
+                #cpl = (mean - lsl) / (3 * sigma)
                 
-            cpk = min(cpl, cpu)
-            cpk_values[kpc] = {
-                'CPK': cpk
-            }
-        else: 
-            calc_type, ppk = calculate_ppk(percentiles, tolerances)
-            cpk_values[kpc] = {
-                calc_type: ppk
-            }
+                #cpk = min(cpl, cpu)
+                #cpk_values[kpc] = {
+                    #'CPK': cpk
+                #}
+            #else: 
+                #calc_type, ppk = calculate_ppk(percentiles, tolerances)
+                #cpk_values[kpc] = {
+                    #calc_type: ppk
+            #}
         
-        print(cpk_values)
-        spinner.stop()
+            #print(cpk_values)
+        self.finished.emit()
         
                 
         #if cpk_values:
@@ -570,188 +567,218 @@ def calculateAndUpdateCpk(self, partId):
             #database.save_cpk_values(partId, formatted_cpk_values)
             #self.dataSubmitted.emit()
     
-def parse_tolerance(tolerance):
-    range_pattern = re.compile(r'(?<!\S)(\d*\.\d+)\s*-\s*(\d*\.\d+)(?!\S)')
-    specific_tolerance_pattern = re.compile(r'([A-Za-z ]+)\s+(\d*\.\d+)')
+    def parse_tolerance(self, tolerance):
+        range_pattern = re.compile(r'(?<!\S)(\d*\.\d+)\s*-\s*(\d*\.\d+)(?!\S)')
+        specific_tolerance_pattern = re.compile(r'([A-Za-z ]+)\s+(\d*\.\d+)')
     
-    range_match = range_pattern.search(tolerance)
+        range_match = range_pattern.search(tolerance)
     
-    if range_match:
-        max_val, min_val = map(float, range_match.groups())
-        return ( max_val, min_val)
+        if range_match:
+            max_val, min_val = map(float, range_match.groups())
+            return ( max_val, min_val)
     
-    specific_tolerance_match = specific_tolerance_pattern.search(tolerance)
-    if specific_tolerance_match:
-        tolerance_type, value = specific_tolerance_match.groups()
-        return (0, float(value))
+        specific_tolerance_match = specific_tolerance_pattern.search(tolerance)
+        if specific_tolerance_match:
+            tolerance_type, value = specific_tolerance_match.groups()
+            return (0, float(value))
     
-    return None, None
+        return None, None
 
-def calculate_dist(measurements, tolerances):
-    mtb = win32com.client.Dispatch("Mtb.Application.1")
-    mtb.UserInterface.Visible = True
-    project = mtb.ActiveProject
-    worksheet = project.ActiveWorksheet
-    columns = worksheet.Columns
+    def calculate_dist(self, measurements, tolerances):
+        mtb = win32com.client.Dispatch("Mtb.Application.1")
+        mtb.UserInterface.Visible = True
+        project = mtb.ActiveProject
+        worksheet = project.ActiveWorksheet
+        columns = worksheet.Columns
     
-    dist_data = {}
-    p_res = {}
-    d = 1
-    for i, (kpc, data) in enumerate(measurements.items()):
-        usl, lsl = tolerances[kpc]
-        if usl is not None and lsl is not None:
-            if usl < lsl:
-                usl, lsl = lsl, usl
+        dist_data = {}
+        p_res = {}
+        d = 1
+        for i, (kpc, data) in enumerate(measurements.items()):
+            usl, lsl = tolerances[kpc]
+            if usl is not None and lsl is not None:
+                if usl < lsl:
+                    usl, lsl = lsl, usl
                 
-            column = columns.Add(None, None, 1)
-            column.SetData(data)
+                column = columns.Add(None, None, 1)
+                column.SetData(data)
             
-            command = f"DCapa C{d} 1; All; BoxCox; Johnson 0.10; RDescriptive; RFitTests; REstimate."
-            project.ExecuteCommand(command)
+                command = f"DCapa C{d} 1; All; BoxCox; Johnson 0.10; RDescriptive; RFitTests; REstimate."
+                project.ExecuteCommand(command)
     
-            time.sleep(2)
+                time.sleep(2)
 
-            commands = project.Commands
-            lastCommand = commands.Item(commands.Count)
-            outputs = lastCommand.Outputs
+                commands = project.Commands
+                lastCommand = commands.Item(commands.Count)
+                outputs = lastCommand.Outputs
 
-            results = []
+                results = []
 
-            for i in range(1, outputs.Count +1):
-                output = outputs.Item(i)
-                results.append(output.Text)
+                for i in range(1, outputs.Count +1):
+                    output = outputs.Item(i)
+                    results.append(output.Text)
     
-            formattedResults = "\n".join(results)
+                formattedResults = "\n".join(results)
             
-            parsed_gof = parse_goodness_of_fit(formattedResults)
-            parsed_params = parse_distribution_params(formattedResults)
+                parsed_gof = self.parse_goodness_of_fit(formattedResults)
+                parsed_params = self.parse_distribution_params(formattedResults)
             
-            best_fit = determine_best_fit(parsed_gof)
-            best_fit_params = parsed_params[best_fit]
+                best_fit = self.determine_best_fit(parsed_gof)
+                best_fit_params = parsed_params[best_fit]
             
-            percentiles = [.00135, .5, .99865]
-            perc_dict = {}
-            for percentile in percentiles:
-                p_column = columns.Add(None, d, 1)
-                p_column.SetData(percentile)
-                percent = f"InvCDF C{d + 1} C{d + 2}; {best_fit} {best_fit_params['location']} {best_fit_params['scale']}."
-                project.ExecuteCommand(percent)
-                o_column = columns.Item(d+2).GetData(1)
-                perc_dict[f'{(percentile * 100):.3f}th Percentile'] = o_column
+                percentiles = [.00135, .5, .99865]
+                perc_dict = {}
+                for percentile in percentiles:
+                    p_column = columns.Add(None, d, 1)
+                    p_column.SetData(percentile)
+                    percent = f"InvCDF C{d + 1} C{d + 2}; {best_fit} {best_fit_params['location']} {best_fit_params['scale']}."
+                    project.ExecuteCommand(percent)
+                    o_column = columns.Item(d+2).GetData(1)
+                    perc_dict[f'{(percentile * 100):.3f}th Percentile'] = o_column
+                    d = d + 2
+                p_res[kpc] = perc_dict
+                d = d + 1
     
-                d = d + 2
-            p_res[kpc] = perc_dict
-            d = d + 1
-    
-            dist_data[kpc] = {
-                'dist': best_fit,
-                'params': best_fit_params
+                dist_data[kpc] = {
+                    'dist': best_fit,
+                    'params': best_fit_params
+                }
+        print(p_res)
+        temp_file = os.path.join(tempfile.gettempdir(), 'temp_project.mpjx')
+        project.SaveAs(temp_file)
+
+        mtb.Quit()
+        return dist_data, p_res
+
+    def parse_goodness_of_fit(output):
+        gof_start = re.search(r'Distribution\s+AD\s+P\s+LRT P', output).end()
+        gof_end = re.search(r"ML Estimates of Distribution Parameters", output).start()
+        gof_table = output[gof_start:gof_end].strip()
+        parsed_data = {}
+        for line in gof_table.strip().split("\n"):
+            parts = re.split(r'\s{2,}', line)
+        
+            distribution = parts[0].strip()
+            AD, P, LRT_P = None, None, None
+            if distribution.startswith('3-Parameter Lognormal') or distribution.startswith('3-Parameter Gamma') or distribution.startswith('3-Parameter Loglogistic'):
+                AD, LRT_P = float(parts[-3]), parts[-1].strip()
+                LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
+            elif distribution.startswith('2-Parameter Exponential') or distribution.startswith('3-Parameter Weibull'):
+                AD, P, LRT_P = float(parts[-3]), parts[-2], parts[-1].strip()
+                LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
+            else:
+                AD, P = float(parts[-2]), parts[-1].strip()
+                P = float(P) if P.replace('.', '', 1).isdigit() else P
+            
+            if isinstance(P, str) and (P.startswith('>') or P.startswith('<')):
+                P = float(P[1:])
+            if isinstance(LRT_P, str) and (LRT_P.startswith('>') or LRT_P.startswith('<')):
+                LRT_P = float(LRT_P[1:])
+            
+            parsed_data[distribution] = {
+                'AD': AD,
+                'P': P,
+                'LRT_P': LRT_P,
             }
-    print(p_res)
-    temp_file = os.path.join(tempfile.gettempdir(), 'temp_project.mpjx')
-    project.SaveAs(temp_file)
-
-    mtb.Quit()
-    return dist_data, p_res
-
-def parse_goodness_of_fit(output):
-    gof_start = re.search(r'Distribution\s+AD\s+P\s+LRT P', output).end()
-    gof_end = re.search(r"ML Estimates of Distribution Parameters", output).start()
-    gof_table = output[gof_start:gof_end].strip()
-    parsed_data = {}
-    for line in gof_table.strip().split("\n"):
-        parts = re.split(r'\s{2,}', line)
         
-        distribution = parts[0].strip()
-        AD, P, LRT_P = None, None, None
-        if distribution.startswith('3-Parameter Lognormal') or distribution.startswith('3-Parameter Gamma') or distribution.startswith('3-Parameter Loglogistic'):
-            AD, LRT_P = float(parts[-3]), parts[-1].strip()
-            LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
-        elif distribution.startswith('2-Parameter Exponential') or distribution.startswith('3-Parameter Weibull'):
-            AD, P, LRT_P = float(parts[-3]), parts[-2], parts[-1].strip()
-            LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
-        else:
-            AD, P = float(parts[-2]), parts[-1].strip()
-            P = float(P) if P.replace('.', '', 1).isdigit() else P
-            
-        if isinstance(P, str) and (P.startswith('>') or P.startswith('<')):
-            P = float(P[1:])
-        if isinstance(LRT_P, str) and (LRT_P.startswith('>') or LRT_P.startswith('<')):
-            LRT_P = float(LRT_P[1:])
-            
-        parsed_data[distribution] = {
-            'AD': AD,
-            'P': P,
-            'LRT_P': LRT_P,
-        }
+            unwanted_dist = ['Box-Cox Transformation', 'Johnson Transformation', '3-Parameter Loglogistic', '3-Parameter Lognormal', 'Loglogistic', '3-Parameter Weibull', '3-Parameter Gamma']
+            filtered_data = {dist: values for dist, values in parsed_data.items() if dist not in unwanted_dist}
         
-        unwanted_dist = ['Box-Cox Transformation', 'Johnson Transformation', '3-Parameter Loglogistic', '3-Parameter Lognormal', 'Loglogistic', '3-Parameter Weibull', '3-Parameter Gamma']
-        filtered_data = {dist: values for dist, values in parsed_data.items() if dist not in unwanted_dist}
-        
-    return filtered_data
+        return filtered_data
 
-def parse_distribution_params(output):
-    params_start = re.search(r"Distribution\s+Location\s+Shape\s+Scale\s+Threshold", output).end()
-    params_table = output[params_start:].strip()
+    def parse_distribution_params(output):
+        params_start = re.search(r"Distribution\s+Location\s+Shape\s+Scale\s+Threshold", output).end()
+        params_table = output[params_start:].strip()
     
-    parsed_data = []
-    for line in params_table.strip().split('\n'):
-        parts = re.split(r'\s{2,}', line)
+        parsed_data = []
+        for line in params_table.strip().split('\n'):
+            parts = re.split(r'\s{2,}', line)
 
-        distribution = parts[0].strip().rstrip('*')
-        location, shape, scale, threshold = None, None, None, None
+            distribution = parts[0].strip().rstrip('*')
+            location, shape, scale, threshold = None, None, None, None
         
-        if distribution.startswith('Normal') or distribution.startswith('Box-Cox Transformation') or distribution.startswith('Lognormal') or distribution.startswith('Smallest Extreme Value') or distribution.startswith('Largest Extreme Value') or distribution.startswith('Logistic') or distribution.startswith('Loglogistic') or distribution.startswith('Johnson Transformation'):
-            location, scale = float(parts[-2]), float(parts[-1])
-        elif distribution.startswith('Exponential'):
-            scale = float(parts[-1])
-        elif distribution.startswith('2-Parameter Exponential'):
-            scale, threshold = float(parts[-2]), float(parts[-1])
-        elif distribution.startswith('Weibull'):
-            shape, scale = float(parts[-2]), float(parts[-1])
-        elif distribution.startswith('3-Parameter Weibull') or distribution.startswith('3-Parameter Gamma'):
-            shape, scale, threshold = float(parts[-3]), float(parts[-2]), float(parts[-1])
-        elif distribution.startswith('3-Parameter Loglogistic') or distribution.startswith('3-Parameter Lognormal'):
-            location, scale, threshold = float(parts[-3]), float(parts[-2]), float(parts[-1])
+            if distribution.startswith('Normal') or distribution.startswith('Box-Cox Transformation') or distribution.startswith('Lognormal') or distribution.startswith('Smallest Extreme Value') or distribution.startswith('Largest Extreme Value') or distribution.startswith('Logistic') or distribution.startswith('Loglogistic') or distribution.startswith('Johnson Transformation'):
+                location, scale = float(parts[-2]), float(parts[-1])
+            elif distribution.startswith('Exponential'):
+                scale = float(parts[-1])
+            elif distribution.startswith('2-Parameter Exponential'):
+                scale, threshold = float(parts[-2]), float(parts[-1])
+            elif distribution.startswith('Weibull'):
+                shape, scale = float(parts[-2]), float(parts[-1])
+            elif distribution.startswith('3-Parameter Weibull') or distribution.startswith('3-Parameter Gamma'):
+                shape, scale, threshold = float(parts[-3]), float(parts[-2]), float(parts[-1])
+            elif distribution.startswith('3-Parameter Loglogistic') or distribution.startswith('3-Parameter Lognormal'):
+                location, scale, threshold = float(parts[-3]), float(parts[-2]), float(parts[-1])
             
-        parsed_data.append((distribution, location, shape, scale, threshold))
+            parsed_data.append((distribution, location, shape, scale, threshold))
     
     
-    parsed_dict = {}
-    for line in parsed_data:
-        distribution = line[0].strip()
-        location, shape, scale, threshold = line[1], line[2], line[3], line[4]
-        parsed_dict[distribution] = {
-            'location': location,
-            'shape': shape,
-            'scale': scale,
-            'threshold': threshold
-        }
+        parsed_dict = {}
+        for line in parsed_data:
+            distribution = line[0].strip()
+            location, shape, scale, threshold = line[1], line[2], line[3], line[4]
+            parsed_dict[distribution] = {
+                'location': location,
+                'shape': shape,
+                'scale': scale,
+                'threshold': threshold
+            }
         
-    return parsed_dict
+        return parsed_dict
 
-def determine_best_fit(gof_results):
-    best_fit = None
-    best_ad = float('inf')
+    def determine_best_fit(gof_results):
+        best_fit = None
+        best_ad = float('inf')
     
-    for distribution, values in gof_results.items():
-        ad_stat = values['AD']
-        p_value = values['P']
-        print(p_value)
+        for distribution, values in gof_results.items():
+            ad_stat = values['AD']
+            p_value = values['P']
+            print(p_value)
         
-        if ad_stat < best_ad:
-            best_ad = ad_stat
-            best_fit = distribution
+            if ad_stat < best_ad:
+                best_ad = ad_stat
+                best_fit = distribution
             
-        elif ad_stat == best_ad:
-            if isinstance(p_value, float):
-                best_p_value = gof_results[best_fit]['P']
-                if isinstance(best_p_value, float) and p_value > best_p_value:
-                    best_fit = distribution
-    return best_fit
+            elif ad_stat == best_ad:
+                if isinstance(p_value, float):
+                    best_p_value = gof_results[best_fit]['P']
+                    if isinstance(best_p_value, float) and p_value > best_p_value:
+                        best_fit = distribution
+        return best_fit
 
+    #Simple math for PPK calculations
+    def calculate_ppk(percentiles, tolerances):
+        print(percentiles)
+        for kpc, percentile in percentiles.items():
+            usl, lsl = tolerances[kpc]
+            if usl is not None and lsl is not None:
+                if usl < lsl:
+                    usl, lsl = lsl, usl
+            
+            low = percentile['0.135th Percentile']
+            med = percentile['50.000th Percentile']
+            high = percentile['99.865th Percentile']
+            print(low, med, high)
+            if usl is None and lsl is not None:
+                ppl = (med - lsl) / (med - low)
+                ppu = None
+            elif usl is not None and lsl is not None:
+                ppu = (usl - med) / (high - med)
+                ppl = (med - lsl) / (med - low)
+            elif lsl is None and usl is not None:
+                ppu = (usl - med) / (high - med)
+                ppl = None
+            
+            if ppu > ppl:
+                calc_type = 'PPU'
+                return calc_type, ppu
+            else: 
+                calc_type = 'PPL'
+                return calc_type, ppl
+        
 #Attempt at calculating the nth percentile using scipy. Not currently being used
-#Using Minitab to calculate instead
+#Using Minitab to calculate instead.
+#Keeping incase i go back to this method
 def calculate_percentile(dist_data):
     print(dist_data)
     results = {}
@@ -820,33 +847,3 @@ def calculate_percentile(dist_data):
             '99.865th Percentile': high,
         }
     return results
-        
-#Simple math for PPK calculations
-def calculate_ppk(percentiles, tolerances):
-    print(percentiles)
-    for kpc, percentile in percentiles.items():
-        usl, lsl = tolerances[kpc]
-        if usl is not None and lsl is not None:
-            if usl < lsl:
-                usl, lsl = lsl, usl
-            
-        low = percentile['0.135th Percentile']
-        med = percentile['50.000th Percentile']
-        high = percentile['99.865th Percentile']
-        print(low, med, high)
-        if usl is None and lsl is not None:
-            ppl = (med - lsl) / (med - low)
-            ppu = None
-        elif usl is not None and lsl is not None:
-            ppu = (usl - med) / (high - med)
-            ppl = (med - lsl) / (med - low)
-        elif lsl is None and usl is not None:
-            ppu = (usl - med) / (high - med)
-            ppl = None
-            
-        if ppu > ppl:
-            calc_type = 'PPU'
-            return calc_type, ppu
-        else: 
-            calc_type = 'PPL'
-            return calc_type, ppl

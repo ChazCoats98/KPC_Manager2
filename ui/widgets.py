@@ -43,7 +43,7 @@ class SpinnerWidget(QWidget):
         self._disable_parent_when_spinning = disable_parent
         self._minimum_trail_opacity = math.pi
         self._trail_fade_percentage = fade
-        self._color = QColor(color)
+        self._color = color
         self._line_width = line_width
         self._roundness = roundness
         
@@ -51,7 +51,10 @@ class SpinnerWidget(QWidget):
         self._timer.timeout.connect(self._rotate)
         self._update_size()
         self._update_timer()
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setWindowModality(Qt.ApplicationModal)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.hide()
         
     def _rotate(self):
@@ -69,7 +72,7 @@ class SpinnerWidget(QWidget):
             int(1000 / (self._number_of_lines * self._revolutions_per_second))
         )
         
-    def paintEvent(self):
+    def paintEvent(self,_):
         self._update_position()
         painter = QPainter(self)
         painter.fillRect(self.rect(), Qt.transparent)
@@ -78,7 +81,7 @@ class SpinnerWidget(QWidget):
         if self._current_counter >= self._number_of_lines:
             self._current_counter = 0
         
-        painter.setPen(Qt.noPen)
+        painter.setPen(Qt.NoPen)
         for i in range(self._number_of_lines):
             painter.save()
             painter.translate(
@@ -117,6 +120,8 @@ class SpinnerWidget(QWidget):
         self._update_position()
         self._is_spinning = True
         self.show()
+        self.raise_()
+        self.activateWindow()
         
         if self.parentWidget() and self._disable_parent_when_spinning:
             self.parentWidget().setEnabled(False)
@@ -143,13 +148,13 @@ class SpinnerWidget(QWidget):
                 (self.parentWidget().height() - self.height()) // 2,
             )
             
-    def _line_count_distance_from_primary(current, primary, total_nr_of_lines):
+    def _line_count_distance_from_primary(self, current, primary, total_nr_of_lines):
         distance = primary - current
         if distance < 0:
             distance += total_nr_of_lines
         return distance
     
-    def _current_line_color(count_distance, total_nr_of_lines, trail_fade_perc, min_opacity, color_input):
+    def _current_line_color(self, count_distance, total_nr_of_lines, trail_fade_perc, min_opacity, color_input):
         color = QColor(color_input)
         if count_distance == 0:
             return color

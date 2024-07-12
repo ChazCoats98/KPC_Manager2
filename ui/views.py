@@ -1,6 +1,6 @@
 import shutil
 import re
-from ui import SpinnerWidget
+import time
 from openpyxl import load_workbook
 from utils import database, functions
 import mplcursors
@@ -12,7 +12,7 @@ from .models import (
     DateSortProxyModel,
     PpapDataModel
     )
-from .widgets import RadioButtonTableWidget
+from .widgets import RadioButtonTableWidget, SpinnerWidget
 from datetime import (
     datetime, 
     timedelta, 
@@ -469,9 +469,8 @@ class uploadDataForm(QWidget):
         
         self.spinner = SpinnerWidget(
             parent=self,
-            
+            color= QColor(45, 121, 227)
         )
-        self.spinner.start()
         
         self.scrollArea = QScrollArea(self)
         self.scrollAreaWidgetContents = QWidget()
@@ -538,7 +537,7 @@ class uploadDataForm(QWidget):
         
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
-        cancelButton.clicked.connect(self.closeWindow)
+        cancelButton.clicked.connect(self.close)
         layout.addWidget(cancelButton, 9, 2, 1, 3)
         
         self.dataTable = QTableWidget()
@@ -552,8 +551,19 @@ class uploadDataForm(QWidget):
         
     def calculateCpk(self):
         self.spinner.start()
-        functions.calculateAndUpdateCpk(self, self.partId)
-        self.spinner.stop()
+        QCoreApplication.processEvents()
+        
+        self.thread = QThread()
+        self.worker = functions.Worker(self.partId)
+        self.worker.moveToThread(self.thread)
+        
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.worker.finished.connect(self.thread.deleteLater)    
+        self.worker.finished.connect(self.spinner.stop)
+        
+        self.thread.start()
         
     def onLotSizeChange(self, text):
         if text.isdigit():
