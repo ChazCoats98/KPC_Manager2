@@ -1,5 +1,6 @@
 import shutil
 import re
+from ui import SpinnerWidget
 from openpyxl import load_workbook
 from utils import database, functions
 import mplcursors
@@ -466,6 +467,12 @@ class uploadDataForm(QWidget):
         
         layout = QGridLayout()
         
+        self.spinner = SpinnerWidget(
+            parent=self,
+            
+        )
+        self.spinner.start()
+        
         self.scrollArea = QScrollArea(self)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollArea.setWidgetResizable(True)
@@ -544,7 +551,9 @@ class uploadDataForm(QWidget):
         self.setLayout(layout)
         
     def calculateCpk(self):
+        self.spinner.start()
         functions.calculateAndUpdateCpk(self, self.partId)
+        self.spinner.stop()
         
     def onLotSizeChange(self, text):
         if text.isdigit():

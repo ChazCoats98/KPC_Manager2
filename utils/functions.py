@@ -5,6 +5,7 @@ import shutil
 import hashlib
 import win32com.client
 import time
+from pyqtspinner import WaitingSpinner
 from datetime import (
     datetime, 
     timedelta, 
@@ -185,6 +186,22 @@ def addFeatureToTable(self, feature_data):
 #_____________________________#
 ##Upload Data View Functions##
 #_____________________________#
+
+def create_spinner(self):
+    parent = self
+    spinner = WaitingSpinner(
+    parent,
+    roundness=100.0,
+    opacity=10.32,
+    fade=53.87,
+    radius=15,
+    lines=107,
+    line_length=20,
+    line_width=6,
+    speed=0.75,
+    color=(60, 145, 235)
+)
+
 
 #clears lot inputs from table 
 def clearLotInputs(self):
@@ -488,42 +505,64 @@ def passMismatch():
     
 #calculate or recalculate CPK on data upload 
 def calculateAndUpdateCpk(self, partId):
-        part_data = database.get_part_by_id(partId)
-        if part_data:
-            tolerances = {feature['kpcNum']: parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
+    spinner = WaitingSpinner(
+    self,
+    True,
+    True,
+    roundness=100.0,
+    fade=53.87,
+    radius=15,
+    lines=107,
+    line_length=20,
+    line_width=6,
+    speed=0.75,
+    color=(60, 145, 235)
+    )
+    spinner.start()
+    part_data = database.get_part_by_id(partId)
+    if part_data:
+        tolerances = {feature['kpcNum']: parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
     
-        measurement_data = database.get_measurements_by_id(partId)
+    measurement_data = database.get_measurements_by_id(partId)
         
-        measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
+    measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
         
-        if measurement_data:
-            for entry in measurement_data:
-                for measurement in entry.get('measurements', []):
-                    kpcNum = measurement.get('kpcNum')
-                    if kpcNum and kpcNum in measurements_by_kpc:
-                        measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
+    if measurement_data:
+        for entry in measurement_data:
+            for measurement in entry.get('measurements', []):
+                kpcNum = measurement.get('kpcNum')
+                if kpcNum and kpcNum in measurements_by_kpc:
+                    measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
         
-        dist_data, percentiles = calculate_dist(measurements_by_kpc, tolerances)
-        for kpc, data in dist_data.items():
-            print(kpc)
-            print(data['dist'])
-            if data['dist'] == 'Normal':
-                usl, lsl = tolerances[kpc]
-                if usl is not None and lsl is not None:
-                    if usl < lsl:
-                        usl, lsl = lsl, usl
-                measurement = measurements_by_kpc[kpc]
-                sigma = np.std(measurement, ddof=1)
-                mean = np.mean(measurement)
+    dist_data, percentiles = calculate_dist(measurements_by_kpc, tolerances)
+    cpk_values = {}
+    for kpc, data in dist_data.items():
+        print(kpc)
+        print(data['dist'])
+        if data['dist'] == 'Normal':
+            usl, lsl = tolerances[kpc]
+            if usl is not None and lsl is not None:
+                if usl < lsl:
+                    usl, lsl = lsl, usl
+            measurement = measurements_by_kpc[kpc]
+            sigma = np.std(measurement, ddof=1)
+            mean = np.mean(measurement)
                 
-                cpu = (usl - mean) / (3 * sigma)
-                cpl = (mean - lsl) / (3 * sigma)
+            cpu = (usl - mean) / (3 * sigma)
+            cpl = (mean - lsl) / (3 * sigma)
                 
-                cpk = min(cpl, cpu)
-                print(f'KPC: {kpc} CPK: {cpk}')
+            cpk = min(cpl, cpu)
+            cpk_values[kpc] = {
+                'CPK': cpk
+            }
+        else: 
+            calc_type, ppk = calculate_ppk(percentiles, tolerances)
+            cpk_values[kpc] = {
+                calc_type: ppk
+            }
         
-        cpk_values = calculate_cpk(percentiles, tolerances)
         print(cpk_values)
+        spinner.stop()
         
                 
         #if cpk_values:
@@ -698,6 +737,7 @@ def determine_best_fit(gof_results):
     for distribution, values in gof_results.items():
         ad_stat = values['AD']
         p_value = values['P']
+        print(p_value)
         
         if ad_stat < best_ad:
             best_ad = ad_stat
@@ -710,6 +750,8 @@ def determine_best_fit(gof_results):
                     best_fit = distribution
     return best_fit
 
+#Attempt at calculating the nth percentile using scipy. Not currently being used
+#Using Minitab to calculate instead
 def calculate_percentile(dist_data):
     print(dist_data)
     results = {}
@@ -779,8 +821,8 @@ def calculate_percentile(dist_data):
         }
     return results
         
-def calculate_cpk(percentiles, tolerances):
-    ppk_values = {}
+#Simple math for PPK calculations
+def calculate_ppk(percentiles, tolerances):
     print(percentiles)
     for kpc, percentile in percentiles.items():
         usl, lsl = tolerances[kpc]
@@ -802,9 +844,9 @@ def calculate_cpk(percentiles, tolerances):
             ppu = (usl - med) / (high - med)
             ppl = None
             
-        ppk = min(ppu, ppl)
-        
-        ppk_values[kpc] = {
-            'cpk':ppk
-        }
-    return ppk_values
+        if ppu > ppl:
+            calc_type = 'PPU'
+            return calc_type, ppu
+        else: 
+            calc_type = 'PPL'
+            return calc_type, ppl
