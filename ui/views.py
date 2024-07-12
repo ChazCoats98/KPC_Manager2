@@ -469,7 +469,8 @@ class uploadDataForm(QWidget):
         
         self.spinner = SpinnerWidget(
             parent=self,
-            color= QColor(45, 121, 227)
+            color= QColor(45, 121, 227),
+            spinner_text='Calculating CPK. This may take a while...',
         )
         
         self.scrollArea = QScrollArea(self)

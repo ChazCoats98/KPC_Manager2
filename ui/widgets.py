@@ -32,6 +32,7 @@ class SpinnerWidget(QWidget):
         color=None, 
         line_width=2,
         roundness=100,
+        spinner_text = None
         ):
         super(SpinnerWidget, self).__init__(parent)
         self._current_counter = 0
@@ -46,6 +47,7 @@ class SpinnerWidget(QWidget):
         self._color = color
         self._line_width = line_width
         self._roundness = roundness
+        self.label = spinner_text
         
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._rotate)
@@ -55,6 +57,24 @@ class SpinnerWidget(QWidget):
         self.setWindowModality(Qt.ApplicationModal)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
+        
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignCenter)
+        
+        self.spinner_container = QWidget(self)
+        self.spinner_layout = QVBoxLayout(self.spinner_container)
+        self.spinner_layout.setContentsMargins(0, 0, 0, 0)
+        self.spinner_container.setLayout(self.spinner_layout)
+        
+        layout.addWidget(self.spinner_container, alignment=Qt.AlignCenter)
+        
+        if spinner_text is not None:
+            self.status_label = QLabel(self)
+            self.status_label.setText(self.label)
+            self.status_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(self.status_label, alignment=Qt.AlignCenter)
+            
+        self.setLayout(layout)
         self.hide()
         
     def _rotate(self):
@@ -66,6 +86,9 @@ class SpinnerWidget(QWidget):
     def _update_size(self):
         size = (self._inner_radius + self._line_length) * 2
         self.setFixedSize(size, size)
+        
+        if self.label:
+            self.setFixedSize(size + len(self.label), size + 30)
         
     def _update_timer(self):
         self._timer.setInterval(
@@ -171,3 +194,4 @@ class SpinnerWidget(QWidget):
             result_alpha = min(1, max(0, result_alpha))
             color.setAlphaF(result_alpha)
         return color
+    
