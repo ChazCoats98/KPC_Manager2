@@ -507,6 +507,10 @@ def passMismatch():
 
 class Worker(QObject):
     finished = pyqtSignal()
+    
+    def __init__(self, partId, parent=None):
+        super().__init__(parent)
+        self.partId = partId
         
     def run(self): 
         self.calculateAndUpdateCpk()
@@ -515,52 +519,51 @@ class Worker(QObject):
         
     def calculateAndUpdateCpk(self):
         print("Worker: Starting calculation")
-        #partId = self.partId
-        #part_data = database.get_part_by_id(partId)
-        #if part_data:
-            #tolerances = {feature['kpcNum']: self.parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
+        partId = self.partId
+        part_data = database.get_part_by_id(partId)
+        if part_data:
+            tolerances = {feature['kpcNum']: self.parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
     
-        #measurement_data = database.get_measurements_by_id(partId)
+        measurement_data = database.get_measurements_by_id(partId)
         
-        #measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
+        measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
         
-        #if measurement_data:
-            #for entry in measurement_data:
-                #for measurement in entry.get('measurements', []):
-                    #kpcNum = measurement.get('kpcNum')
-                    #if kpcNum and kpcNum in measurements_by_kpc:
-                        #measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
+        if measurement_data:
+            for entry in measurement_data:
+                for measurement in entry.get('measurements', []):
+                    kpcNum = measurement.get('kpcNum')
+                    if kpcNum and kpcNum in measurements_by_kpc:
+                        measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
         
-        #dist_data, percentiles = calculate_dist(measurements_by_kpc, tolerances)
+        dist_data, percentiles = self.calculate_dist(measurements_by_kpc, tolerances)
         cpk_values = {}
-        time.sleep(2)
         print('calculating cpk')
-        #for kpc, data in dist_data.items():
-            #print(kpc)
-            #print(data['dist'])
-            #if data['dist'] == 'Normal':
-                #usl, lsl = tolerances[kpc]
-                #if usl is not None and lsl is not None:
-                    #if usl < lsl:
-                        #usl, lsl = lsl, usl
-                #measurement = measurements_by_kpc[kpc]
-                #sigma = np.std(measurement, ddof=1)
-                #mean = np.mean(measurement)
+        for kpc, data in dist_data.items():
+            print(kpc)
+            print(data['dist'])
+            if data['dist'] == 'Normal':
+                usl, lsl = tolerances[kpc]
+                if usl is not None and lsl is not None:
+                    if usl < lsl:
+                        usl, lsl = lsl, usl
+                measurement = measurements_by_kpc[kpc]
+                sigma = np.std(measurement, ddof=1)
+                mean = np.mean(measurement)
                 
-                #cpu = (usl - mean) / (3 * sigma)
-                #cpl = (mean - lsl) / (3 * sigma)
+                cpu = (usl - mean) / (3 * sigma)
+                cpl = (mean - lsl) / (3 * sigma)
                 
-                #cpk = min(cpl, cpu)
-                #cpk_values[kpc] = {
-                    #'CPK': cpk
-                #}
-            #else: 
-                #calc_type, ppk = calculate_ppk(percentiles, tolerances)
-                #cpk_values[kpc] = {
-                    #calc_type: ppk
-            #}
+                cpk = min(cpl, cpu)
+                cpk_values[kpc] = {
+                    'CPK': cpk
+                }
+            else: 
+                calc_type, ppk = self.calculate_ppk(percentiles, tolerances)
+                cpk_values[kpc] = {
+                    calc_type: ppk
+            }
         
-            #print(cpk_values)
+            print(cpk_values)
         print("Worker: Calculation finished")
         self.finished.emit()
             #if cpk_values:
@@ -587,7 +590,7 @@ class Worker(QObject):
 
     def calculate_dist(self, measurements, tolerances):
         mtb = win32com.client.Dispatch("Mtb.Application.1")
-        mtb.UserInterface.Visible = True
+        mtb.UserInterface.Visible = False
         project = mtb.ActiveProject
         worksheet = project.ActiveWorksheet
         columns = worksheet.Columns

@@ -564,7 +564,7 @@ class uploadDataForm(QWidget):
         QCoreApplication.processEvents()
         
         self.thread = QThread()
-        self.worker = functions.Worker()
+        self.worker = functions.Worker(self.partId)
         self.worker.moveToThread(self.thread)
         
         self.thread.started.connect(self.worker.run)
