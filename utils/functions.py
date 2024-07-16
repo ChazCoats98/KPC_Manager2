@@ -504,7 +504,24 @@ def passMismatch():
     dlg.exec()
     
 #calculate or recalculate CPK on data upload 
+def calculateCpk(self):
+        self.spinner.start()
+        QCoreApplication.processEvents()
+        
+        self.thread = QThread()
+        self.worker = Worker(self.partId)
+        self.worker.moveToThread(self.thread)
+        
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.worker.finished.connect(self.spinner.stop)
+        self.thread.finished.connect(self.thread.deleteLater)    
+        self.thread.start()
+        
+        self.thread.started.connect(lambda: self.partIdSignal.emit(self.partId))
 
+#Worker to task out long-running cpk calculation to prevent application freeze
 class Worker(QObject):
     finished = pyqtSignal()
     
@@ -587,6 +604,9 @@ class Worker(QObject):
             return (0, float(value))
     
         return None, None
+    
+    def test_normalRJ(self, measurements, tolerances):
+        print('testing NormalRJ distribution')
 
     def calculate_dist(self, measurements, tolerances):
         mtb = win32com.client.Dispatch("Mtb.Application.1")

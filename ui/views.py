@@ -542,7 +542,7 @@ class uploadDataForm(QWidget):
         
         updateCpkButton = QPushButton('Calculate CPK')
         updateCpkButton.setStyleSheet("background-color: #3ADC73")
-        updateCpkButton.clicked.connect(self.calculateCpk)
+        updateCpkButton.clicked.connect(lambda: functions.calculateCpk(self))
         layout.addWidget(updateCpkButton, 8, 2, 1, 3)
         
         cancelButton = QPushButton('Cancel')
@@ -558,23 +558,6 @@ class uploadDataForm(QWidget):
             self.dataTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
             
         self.setLayout(layout)
-        
-    def calculateCpk(self):
-        self.spinner.start()
-        QCoreApplication.processEvents()
-        
-        self.thread = QThread()
-        self.worker = functions.Worker(self.partId)
-        self.worker.moveToThread(self.thread)
-        
-        self.thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.worker.finished.connect(self.spinner.stop)
-        self.thread.finished.connect(self.thread.deleteLater)    
-        self.thread.start()
-        
-        self.thread.started.connect(lambda: self.partIdSignal.emit(self.partId))
         
     def onLotSizeChange(self, text):
         if text.isdigit():
