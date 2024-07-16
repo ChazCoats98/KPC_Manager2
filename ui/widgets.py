@@ -3,6 +3,7 @@ import math
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QRect, Qt, QTimer
 from PyQt5.QtGui import QColor, QPainter, QPaintEvent
+from textwrap import wrap
 
 class RadioButtonTableWidget(QWidget):
     def __init__(self, parent=None):
@@ -53,28 +54,19 @@ class SpinnerWidget(QWidget):
         self._timer.timeout.connect(self._rotate)
         self._update_size()
         self._update_timer()
-        #self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setWindowModality(Qt.ApplicationModal)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setAttribute(Qt.WA_ShowWithoutActivating)
         
-        layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignCenter)
-        
-        self.spinner_container = QWidget(self)
-        self.spinner_layout = QVBoxLayout(self.spinner_container)
-        self.spinner_layout.setContentsMargins(0, 0, 0, 0)
-        self.spinner_container.setLayout(self.spinner_layout)
-        
-        layout.addWidget(self.spinner_container, alignment=Qt.AlignCenter)
+        main_layout = QVBoxLayout(self)
+        main_layout.setAlignment(Qt.AlignCenter)
         
         if spinner_text is not None:
             self.status_label = QLabel(self)
             self.status_label.setText(self.label)
             self.status_label.setAlignment(Qt.AlignCenter)
-            layout.addWidget(self.status_label, alignment=Qt.AlignCenter)
+            main_layout.addWidget(self.status_label, alignment=Qt.AlignCenter)
             
-        self.setLayout(layout)
+        self.setLayout(main_layout)
         self.hide()
         
     def _rotate(self):
@@ -88,7 +80,8 @@ class SpinnerWidget(QWidget):
         self.setFixedSize(size, size)
         
         if self.label:
-            self.setFixedSize(size + len(self.label), size + 30)
+            print(len(self.label))
+            self.setFixedSize(size + (len(self.label) + 50), size + (self._inner_radius * 5))
         
     def _update_timer(self):
         self._timer.setInterval(
@@ -108,7 +101,7 @@ class SpinnerWidget(QWidget):
         for i in range(self._number_of_lines):
             painter.save()
             painter.translate(
-                self._inner_radius + self._line_length,
+                self.width() // 2,
                 self._inner_radius + self._line_length
             )
             rotate_angle = 360 * i / self._number_of_lines
@@ -174,7 +167,7 @@ class SpinnerWidget(QWidget):
     def _line_count_distance_from_primary(self, current, primary, total_nr_of_lines):
         distance = primary - current
         if distance < 0:
-            distance += total_nr_of_lines
+            distance += total_nr_of_lines 
         return distance
     
     def _current_line_color(self, count_distance, total_nr_of_lines, trail_fade_perc, min_opacity, color_input):

@@ -21,6 +21,7 @@ from datetime import (
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+from textwrap import wrap
 
 #Main window view of application
 class DashboardView(QMainWindow):
@@ -470,12 +471,16 @@ class uploadDataForm(QWidget):
         
         self.spinner = SpinnerWidget(
             parent=self,
-            color= QColor(45, 121, 227),
-            spinner_text='Calculating CPK. This may take a while...',
+            roundness=100.0,
+            fade=61.98,
+            radius=25,
+            lines=65,
+            line_length=13,
+            line_width=20,
+            speed=0.68,
+            color= QColor(34, 130, 255),
+            spinner_text='Calculating CPK.\nThis may take a while...',
         )
-        
-        self.worker = None
-        self.thread = None
         
         self.scrollArea = QScrollArea(self)
         self.scrollAreaWidgetContents = QWidget()
