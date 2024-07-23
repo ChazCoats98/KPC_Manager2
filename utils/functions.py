@@ -12,7 +12,8 @@ from datetime import (
     date
     )
 import numpy as np
-from scipy.stats import anderson, boxcox, norm, lognorm, expon, weibull_min, genextreme, gamma, logistic,fisk, kstest, weibull_max, gumbel_l, gumbel_r
+from scipy import interpolate
+from scipy.stats import anderson, shapiro, boxcox, norm, lognorm, expon, weibull_min, genextreme, gamma, logistic,fisk, kstest, weibull_max, gumbel_l, gumbel_r
 from openpyxl import load_workbook
 from PyQt5.QtWidgets import QMessageBox
 from utils import database
@@ -475,7 +476,7 @@ def submitData(self):
                 QMessageBox.critical(self, "Error", f"An error occurred while saving the file: {e}")
                 
         
-        calculateAndUpdateCpk(self, self.partId)
+        calculateCpk(self)
             
 
 
@@ -518,8 +519,6 @@ def calculateCpk(self):
         self.worker.finished.connect(self.spinner.stop)
         self.thread.finished.connect(self.thread.deleteLater)    
         self.thread.start()
-        
-        self.thread.started.connect(lambda: self.partIdSignal.emit(self.partId))
 
 #Worker to task out long-running cpk calculation to prevent application freeze
 class Worker(QObject):
@@ -550,7 +549,11 @@ class Worker(QObject):
                 for measurement in entry.get('measurements', []):
                     kpcNum = measurement.get('kpcNum')
                     if kpcNum and kpcNum in measurements_by_kpc:
-                        measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
+                        if measurement['measurement']:
+                            measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
+        
+        normrj_results = self.test_normalRJ(measurements_by_kpc, tolerances)
+        print(normrj_results)
         
         dist_data, percentiles = self.calculate_dist(measurements_by_kpc, tolerances)
         cpk_values = {}
@@ -606,7 +609,16 @@ class Worker(QObject):
         return None, None
     
     def test_normalRJ(self, measurements, tolerances):
-        print('testing NormalRJ distribution')
+        normality_results = {}
+        for kpc, measurements in measurements.items():
+            
+            stat, p_value = shapiro(measurements)
+            
+            normality_results[kpc] = {
+                'Shapiro Stat': stat,
+                'shapiro P-value': p_value
+            }
+        return normality_results
 
     def calculate_dist(self, measurements, tolerances):
         mtb = win32com.client.Dispatch("Mtb.Application.1")
