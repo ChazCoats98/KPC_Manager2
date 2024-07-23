@@ -953,4 +953,38 @@ class FeatureForm(QWidget):
     def closeWindow(self):
         self.close()
         
+class GageRRForm(QWidget):
+    def __init__(self):
+        super().__init__()
         
+        self.setWindowTitle("Gage R&R")
+        self.resize(800, 600)
+        
+        layout = QGridLayout()
+        
+        # Part number form 
+        partLabel = QLabel('Part Number:')
+        self.partInput = QLabel()
+        layout.addWidget(partLabel, 0, 0)
+        layout.addWidget(self.partInput, 1, 0)
+        
+        # Part revision form
+        revLabel = QLabel('Revision Letter:')
+        self.revInput = QLabel()
+        layout.addWidget(revLabel, 0, 1)
+        layout.addWidget(self.revInput, 1, 1)
+        
+        # upload date form
+        udLabel = QLabel('Last Net-Inspect Upload Date:')
+        self.udInput = QLabel()
+        layout.addWidget(udLabel, 0, 2)
+        layout.addWidget(self.udInput, 1, 2)
+        
+    def loadPartData(self, selectedPartData):
+        self.partInput.setText(selectedPartData['partNumber'])
+        self.revInput.setText(selectedPartData['rev'])
+        self.udInput.setText(selectedPartData['uploadDate'])
+        
+        self.featureTable.setRowCount(0)
+        for feature in selectedPartData['features']:
+            functions.addFeatureToTable(self, feature)
