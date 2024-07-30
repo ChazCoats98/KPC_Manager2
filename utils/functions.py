@@ -510,10 +510,11 @@ def calculateCpk(self):
         QCoreApplication.processEvents()
         
         self.thread = QThread()
-        self.worker = Worker(self.partId)
+        self.worker = Worker(self.partId, self)
         self.worker.moveToThread(self.thread)
         
         self.thread.started.connect(self.worker.run)
+        self.worker.init_dialog.connect(info_dialog_init)
         self.worker.finished.connect(self.thread.quit)
         self.worker.finished.connect(self.worker.deleteLater)
         self.worker.finished.connect(self.spinner.stop)
@@ -523,15 +524,16 @@ def calculateCpk(self):
 #Worker to task out long-running cpk calculation to prevent application freeze
 class Worker(QObject):
     finished = pyqtSignal()
+    init_dialog = pyqtSignal(QWidget, str, str)
     
-    def __init__(self, partId, parent=None):
-        super().__init__(parent)
+    def __init__(self, partId, parent = None):
+        super().__init__()
         self.partId = partId
+        self.parent = parent
         
     def run(self): 
         self.calculateAndUpdateCpk()
         self.finished.emit()
-        
         
     def calculateAndUpdateCpk(self):
         print("Worker: Starting calculation")
@@ -545,12 +547,16 @@ class Worker(QObject):
         measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
         
         if measurement_data:
+            print(measurement_data)
             for entry in measurement_data:
                 for measurement in entry.get('measurements', []):
                     kpcNum = measurement.get('kpcNum')
                     if kpcNum and kpcNum in measurements_by_kpc:
                         if measurement['measurement']:
                             measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
+                        if len(measurements_by_kpc[kpcNum]) <= 3:
+                            self.init_dialog.emit(self.parent, 'Too Few Data Points', 'Not enough data points. Skipping CPK calculation')
+                            return
         
         normrj_results = self.test_normalRJ(measurements_by_kpc, tolerances)
         print(normrj_results)
@@ -883,3 +889,10 @@ def calculate_percentile(dist_data):
             '99.865th Percentile': high,
         }
     return results
+
+def info_dialog_init(parent, error, detail_text):
+    dlg = QMessageBox(parent)
+    dlg.setWindowTitle(error)
+    dlg.setText(detail_text)
+    dlg.setIcon(QMessageBox.Information)
+    dlg.exec()

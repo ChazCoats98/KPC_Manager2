@@ -52,6 +52,8 @@ class DashboardView(QMainWindow):
         historicIcon = fugue.icon('clock-history')
         cpkIcon = fugue.icon('edit-mathematics')
         deleteIcon = fugue.icon('cross')
+        gageIcon = QPixmap('./assets/gage_rr_logo.png')
+        print(gageIcon)
         
         addPartButton = QAction(QIcon(plusIcon), 'Add Part', self)
         addPartButton.setStatusTip('Add part')
@@ -76,7 +78,12 @@ class DashboardView(QMainWindow):
         cpkDataButton = QAction(QIcon(cpkIcon), 'CPK Data', self)
         cpkDataButton.setStatusTip('Display CPK data for selected part')
         cpkDataButton.triggered.connect(self.openCpkDashboard)
-        kpcToolbar.addAction(cpkDataButton)      
+        kpcToolbar.addAction(cpkDataButton)
+        
+        gageRRButton = QAction(QIcon(gageIcon), 'Gage R&R Dashboard', self)
+        gageRRButton.setStatusTip('Display Gage R&R data for selected part')
+        gageRRButton.triggered.connect(self.openCpkDashboard)
+        kpcToolbar.addAction(gageRRButton)     
         
         deletePartButton = QAction(QIcon(deleteIcon), 'Delete Part', self)
         deletePartButton.setStatusTip('Delete selected part')
