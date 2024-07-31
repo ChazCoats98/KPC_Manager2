@@ -554,9 +554,11 @@ class Worker(QObject):
                     if kpcNum and kpcNum in measurements_by_kpc:
                         if measurement['measurement']:
                             measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
-                        if len(measurements_by_kpc[kpcNum]) <= 3:
-                            self.init_dialog.emit(self.parent, 'Too Few Data Points', 'Not enough data points. Skipping CPK calculation')
-                            return
+
+        for kpc, measurements in measurements_by_kpc.items():
+            if len(measurements) <= 3:
+                self.init_dialog.emit(self.parent, 'Too Few Data Points', 'Not enough data points. Skipping CPK calculation')
+                return
         
         normrj_results = self.test_normalRJ(measurements_by_kpc, tolerances)
         print(normrj_results)
@@ -565,8 +567,6 @@ class Worker(QObject):
         cpk_values = {}
         print('calculating cpk')
         for kpc, data in dist_data.items():
-            print(kpc)
-            print(data['dist'])
             if data['dist'] == 'Normal':
                 usl, lsl = tolerances[kpc]
                 if usl is not None and lsl is not None:
@@ -591,28 +591,10 @@ class Worker(QObject):
         
             print(cpk_values)
         print("Worker: Calculation finished")
-        self.finished.emit()
-            #if cpk_values:
-                #formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
-                #database.save_cpk_values(partId, formatted_cpk_values)
-                #self.dataSubmitted.emit()
-    
-    def parse_tolerance(self, tolerance):
-        range_pattern = re.compile(r'(?<!\S)(\d*\.\d+)\s*-\s*(\d*\.\d+)(?!\S)')
-        specific_tolerance_pattern = re.compile(r'([A-Za-z ]+)\s+(\d*\.\d+)')
-    
-        range_match = range_pattern.search(tolerance)
-    
-        if range_match:
-            max_val, min_val = map(float, range_match.groups())
-            return ( max_val, min_val)
-    
-        specific_tolerance_match = specific_tolerance_pattern.search(tolerance)
-        if specific_tolerance_match:
-            tolerance_type, value = specific_tolerance_match.groups()
-            return (0, float(value))
-    
-        return None, None
+        if cpk_values:
+            formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
+            database.save_cpk_values(partId, formatted_cpk_values)
+            self.parent.dataSubmitted.emit()
     
     def test_normalRJ(self, measurements, tolerances):
         normality_results = {}
@@ -889,6 +871,23 @@ def calculate_percentile(dist_data):
             '99.865th Percentile': high,
         }
     return results
+
+def parse_tolerance(tolerance):
+        range_pattern = re.compile(r'(?<!\S)(\d*\.\d+)\s*-\s*(\d*\.\d+)(?!\S)')
+        specific_tolerance_pattern = re.compile(r'([A-Za-z ]+)\s+(\d*\.\d+)')
+    
+        range_match = range_pattern.search(tolerance)
+    
+        if range_match:
+            max_val, min_val = map(float, range_match.groups())
+            return ( max_val, min_val)
+    
+        specific_tolerance_match = specific_tolerance_pattern.search(tolerance)
+        if specific_tolerance_match:
+            tolerance_type, value = specific_tolerance_match.groups()
+            return (0, float(value))
+    
+        return None, None
 
 def info_dialog_init(parent, error, detail_text):
     dlg = QMessageBox(parent)
