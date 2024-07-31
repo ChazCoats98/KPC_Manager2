@@ -996,29 +996,16 @@ class KPCSummaryWind(QWidget):
         
         layout = QGridLayout()
         
-        # Part number form 
-        partLabel = QLabel('Part Number:')
-        self.partInput = QLabel()
-        layout.addWidget(partLabel, 0, 0)
-        layout.addWidget(self.partInput, 1, 0)
+        self.kpcTable = QTableWidget()
+        self.kpcTable.setColumnCount(5)
+        self.kpcTable.setHorizontalHeaderLabels(["Part Number", "KPC Number", "Dimension", "Last Data Upload Date", "CPK Value"])
+        self.kpcTable.horizontalHeader().setStretchLastSection(False)
+        for column in range(self.kpcTable.columnCount()):
+            self.kpcTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+        functions.addKPCToTable(self)
+            
+        layout.addWidget(self.kpcTable, 4, 0, 1, 5)
+        self.setLayout(layout)
         
-        # Part revision form
-        revLabel = QLabel('Revision Letter:')
-        self.revInput = QLabel()
-        layout.addWidget(revLabel, 0, 1)
-        layout.addWidget(self.revInput, 1, 1)
         
-        # upload date form
-        udLabel = QLabel('Last Net-Inspect Upload Date:')
-        self.udInput = QLabel()
-        layout.addWidget(udLabel, 0, 2)
-        layout.addWidget(self.udInput, 1, 2)
         
-    def loadPartData(self, selectedPartData):
-        self.partInput.setText(selectedPartData['partNumber'])
-        self.revInput.setText(selectedPartData['rev'])
-        self.udInput.setText(selectedPartData['uploadDate'])
-        
-        self.featureTable.setRowCount(0)
-        for feature in selectedPartData['features']:
-            functions.addFeatureToTable(self, feature)

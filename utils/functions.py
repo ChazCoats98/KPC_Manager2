@@ -183,6 +183,34 @@ def addFeatureToTable(self, feature_data):
         for i, key in enumerate(keys):
             value = feature_data.get(key, '')
             self.featureTable.setItem(row_position, i, QTableWidgetItem(value))
+            
+def addKPCToTable(self):
+        self.kpcTable.setRowCount(0)
+        data = database.get_all_data()
+        
+        features = []
+        
+        for part in data:
+            for feature in part['features']:
+                if 'cpk' in feature:
+                    features.append((
+                        part['partNumber'], 
+                        feature['kpcNum'], 
+                        feature['tol'], 
+                        part['uploadDate'], 
+                        feature['cpk']
+                        ))
+                
+        features.sort(key=lambda x: x[4])
+        
+        for feature in features:
+            row_position = self.kpcTable.rowCount()
+            self.kpcTable.insertRow(row_position)
+            
+            for col, data in enumerate(feature):
+                self.kpcTable.setItem(row_position, col, QTableWidgetItem(str(data)))
+        
+        
 
 #_____________________________#
 ##Upload Data View Functions##
@@ -580,14 +608,10 @@ class Worker(QObject):
                 cpl = (mean - lsl) / (3 * sigma)
                 
                 cpk = min(cpl, cpu)
-                cpk_values[kpc] = {
-                    'CPK': cpk
-                }
+                cpk_values[kpc] = cpk
             else: 
                 calc_type, ppk = self.calculate_ppk(percentiles, tolerances)
-                cpk_values[kpc] = {
-                    calc_type: ppk
-            }
+                cpk_values[kpc] =  ppk
         
             print(cpk_values)
         print("Worker: Calculation finished")
@@ -610,7 +634,7 @@ class Worker(QObject):
 
     def calculate_dist(self, measurements, tolerances):
         mtb = win32com.client.Dispatch("Mtb.Application.1")
-        mtb.UserInterface.Visible = False
+        mtb.UserInterface.Visible = True
         project = mtb.ActiveProject
         worksheet = project.ActiveWorksheet
         columns = worksheet.Columns
@@ -655,7 +679,7 @@ class Worker(QObject):
                 for percentile in percentiles:
                     p_column = columns.Add(None, d, 1)
                     p_column.SetData(percentile)
-                    percent = f"InvCDF C{d + 1} C{d + 2}; {best_fit} {best_fit_params['location']} {best_fit_params['scale']}."
+                    percent = self.get_perc_format(d, best_fit, best_fit_params)
                     project.ExecuteCommand(percent)
                     o_column = columns.Item(d+2).GetData(1)
                     perc_dict[f'{(percentile * 100):.3f}th Percentile'] = o_column
@@ -799,6 +823,30 @@ class Worker(QObject):
             else: 
                 calc_type = 'PPL'
                 return calc_type, ppl
+            
+    def parse_tolerance(self, tolerance):
+        range_pattern = re.compile(r'(?<!\S)(\d*\.\d+)\s*-\s*(\d*\.\d+)(?!\S)')
+        specific_tolerance_pattern = re.compile(r'([A-Za-z ]+)\s+(\d*\.\d+)')
+    
+        range_match = range_pattern.search(tolerance)
+    
+        if range_match:
+            max_val, min_val = map(float, range_match.groups())
+            return ( max_val, min_val)
+    
+        specific_tolerance_match = specific_tolerance_pattern.search(tolerance)
+        if specific_tolerance_match:
+            tolerance_type, value = specific_tolerance_match.groups()
+            return (0, float(value))
+    
+        return None, None
+    
+    def get_perc_format(self, d, best_fit, best_fit_params):
+        if best_fit == 'Largest Extreme Value':
+            return f'InvCDF C{d + 1} C{d + 2}; Lextremevalue {best_fit_params['location']} {best_fit_params['scale']}.'
+        else:
+            print(best_fit)
+            return f'InvCDF C{d + 1} C{d + 2}; {best_fit} {best_fit_params['location']} {best_fit_params['scale']}.'
         
 #Attempt at calculating the nth percentile using scipy. Not currently being used
 #Using Minitab to calculate instead.
