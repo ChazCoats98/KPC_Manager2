@@ -53,42 +53,24 @@ class DashboardView(QMainWindow):
         cpkIcon = fugue.icon('edit-mathematics')
         deleteIcon = fugue.icon('cross')
         gageIcon = QPixmap('./assets/gage_rr_logo.png')
+        snapshotIcon = fugue.icon('chart-down-color')
         print(gageIcon)
         
-        addPartButton = QAction(QIcon(plusIcon), 'Add Part', self)
-        addPartButton.setStatusTip('Add part')
-        addPartButton.triggered.connect(self.openPartForm)
-        kpcToolbar.addAction(addPartButton)
-        
-        editPartButton = QAction(QIcon(editIcon), 'Edit Part', self)
-        editPartButton.setStatusTip('Edit part')
-        editPartButton.triggered.connect(self.editSelectedPart)
-        kpcToolbar.addAction(editPartButton)
-        
-        uploadDataButton = QAction(QIcon(uploadIcon), 'Upload Data', self)
-        uploadDataButton.setStatusTip('Upload data for selected part')
-        uploadDataButton.triggered.connect(self.openUploadForm)
-        kpcToolbar.addAction(uploadDataButton)
-        
-        historicDataButton = QAction(QIcon(historicIcon), 'Historic Data', self)
-        historicDataButton.setStatusTip('Display past data uploads')
-        historicDataButton.triggered.connect(self.openHistoricalUploadWindow)
-        kpcToolbar.addAction(historicDataButton)    
-        
-        cpkDataButton = QAction(QIcon(cpkIcon), 'CPK Data', self)
-        cpkDataButton.setStatusTip('Display CPK data for selected part')
-        cpkDataButton.triggered.connect(self.openCpkDashboard)
-        kpcToolbar.addAction(cpkDataButton)
-        
-        gageRRButton = QAction(QIcon(gageIcon), 'Gage R&R Dashboard', self)
-        gageRRButton.setStatusTip('Display Gage R&R data for selected part')
-        gageRRButton.triggered.connect(self.openGageRRForm)
-        kpcToolbar.addAction(gageRRButton)     
-        
-        deletePartButton = QAction(QIcon(deleteIcon), 'Delete Part', self)
-        deletePartButton.setStatusTip('Delete selected part')
-        deletePartButton.triggered.connect(self.deleteSelectedPart)
-        kpcToolbar.addAction(deletePartButton)    
+        buttons = [
+            ('Add Part', self.openPartForm, plusIcon),
+            ('Edit Part', self.editSelectedPart, editIcon),
+            ('Upload Data', self.openUploadForm, uploadIcon),
+            ('Historic Data', self.openHistoricalUploadWindow, historicIcon),
+            ('CPK Data', self.openCpkDashboard, cpkIcon),
+            ('Gage R&R Dashboard', self.openGageRRForm, gageIcon),
+            ('CPK Snapshot', self.openCpkSnapshot, snapshotIcon),
+            ('Delete Part', self.deleteSelectedPart, deleteIcon)
+        ]
+        for name, callback, icon in buttons:
+            actionButton = QAction(QIcon(icon), name, self)
+            actionButton.setStatusTip(name)
+            actionButton.triggered.connect(callback)
+            kpcToolbar.addAction(actionButton)
         
         self.setStatusBar(QStatusBar(self))
         
@@ -143,6 +125,11 @@ class DashboardView(QMainWindow):
     def openGageRRForm(self):
         self.gageRRForm = GageRRForm()
         self.gageRRForm.show()
+        
+    def openCpkSnapshot(self):
+        self.KPCSumWind = KPCSummaryWind()
+        self.KPCSumWind.show()
+        
         
     def openUploadForm(self):
         index = self.kpcTreeView.currentIndex()
