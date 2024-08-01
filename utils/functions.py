@@ -218,15 +218,25 @@ def addKPCToTable(self):
                 self.kpcTable.setItem(row_position, col, item)
                 
 def setMinHeaderWidth(self):
-    font = self.kpcTable.horizontalHeader().font()
-    font_metrics = QFontMetrics(font)
+    total_width = self.kpcTable.width()
+    print(total_width)
     
-    for col in range(self.kpcTable.columnCount()):
-        header_text = self.kpcTable.horizontalHeaderItem(col).text()
-        text_width = font_metrics.width(header_text) + 10
-        self.kpcTable.horizontalHeader().setMinimumSectionSize(text_width)
-        self.kpcTable.setColumnWidth(col, text_width)
-        
+    for column in range(self.kpcTable.columnCount()):
+        self.kpcTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeToContents)
+    
+    content_width = sum(self.kpcTable.columnWidth(column) for column in range(self.kpcTable.columnCount()))
+    extra_width = total_width - content_width
+    print(content_width)
+    
+    if extra_width > 0:
+        for column in range(self.kpcTable.columnCount()):
+            current_width = self.kpcTable.columnWidth(column)
+            
+            proportion = current_width / content_width
+            new_width = current_width + int(proportion * extra_width)
+            self.kpcTable.setColumnWidth(column, new_width)
+    
+            
 
 #_____________________________#
 ##Upload Data View Functions##

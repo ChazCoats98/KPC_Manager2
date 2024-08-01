@@ -54,7 +54,7 @@ class DashboardView(QMainWindow):
         deleteIcon = fugue.icon('cross')
         gageIcon = QPixmap('./assets/gage_rr_logo.png')
         snapshotIcon = fugue.icon('chart-down-color')
-        print(gageIcon)
+        formIcon = fugue.icon('document-text')
         
         buttons = [
             ('Add Part', self.openPartForm, plusIcon),
@@ -62,6 +62,7 @@ class DashboardView(QMainWindow):
             ('Upload Data', self.openUploadForm, uploadIcon),
             ('Historic Data', self.openHistoricalUploadWindow, historicIcon),
             ('CPK Data', self.openCpkDashboard, cpkIcon),
+            ('KPC Management Form Dashboard', self.openFormDashboard, formIcon),
             ('Gage R&R Dashboard', self.openGageRRForm, gageIcon),
             ('CPK Snapshot', self.openCpkSnapshot, snapshotIcon),
             ('Delete Part', self.deleteSelectedPart, deleteIcon)
@@ -116,6 +117,26 @@ class DashboardView(QMainWindow):
         self.partForm = partForm()
         self.partForm.partSubmitted.connect(self.refreshTreeView)
         self.partForm.show()
+        
+    def openFormDashboard(self):
+        index = self.kpcTreeView.currentIndex()
+        if not index.isValid():
+            QMessageBox.warning(self, "Selection", "No part selected.")
+            return
+        sourceIndex = self.kpcProxyModel.mapToSource(index)
+        part_id = self.kpcModel.getPartId(sourceIndex)
+        if part_id is None:
+            QMessageBox.warning(self, "Error", "Failed to identify selected part.")
+            return
+        
+        selectedPartData = database.get_part_by_id(part_id)
+        if not selectedPartData:
+            QMessageBox.warning(self, "Error", "Could not find part data.")
+            return
+        
+        self.manForm = ManagementFormWind(partId=part_id)
+        self.manForm.loadPartData(selectedPartData)
+        self.manForm.show()
         
     def openPpapPartForm(self):
         self.partForm = ppapPartForm()
@@ -997,11 +1018,12 @@ class KPCSummaryWind(QWidget):
         layout = QGridLayout()
         
         self.kpcTable = QTableWidget()
-        self.kpcTable.setColumnCount(7)
-        self.kpcTable.setHorizontalHeaderLabels(['Part Number', 'KPC Number', 'Dimension', 'Last Data Upload Date', 'CPK Value', 'Management Form Upload Date', 'Management Form Expiration Date'])
-        functions.setMinHeaderWidth(self)
+        self.kpcTable.setColumnCount(8)
+        self.kpcTable.setHorizontalHeaderLabels(['Part Number', 'KPC Number', 'Dimension', 'Last Data Upload Date', 'CPK Value', 'Management Form Number', 'Management Form Upload Date', 'Management Form Expiration Date'])
+        for column in range(self.kpcTable.columnCount()):
+            self.kpcTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
         self.kpcTable.horizontalHeader().setStretchLastSection(False)
-        self.kpcTable.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.kpcTable.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
                 
         functions.addKPCToTable(self)
             
@@ -1009,4 +1031,68 @@ class KPCSummaryWind(QWidget):
         self.setLayout(layout)
         
         
+class ManagementFormWind(QWidget):
+    def __init__(self, partId = None):
+        super().__init__()
         
+        self.partId = partId
+        self.setWindowTitle("KPC Management Forms")
+        self.resize(800, 600)
+        
+        layout = QGridLayout()
+        
+        # Part number form 
+        partLabel = QLabel('Part Number:')
+        self.partNumber = QLabel('')
+        layout.addWidget(partLabel, 0, 0)
+        layout.addWidget(self.partNumber, 0, 1)
+        
+        # Part revision form
+        revLabel = QLabel('Revision Letter:')
+        self.revLetter = QLabel('')
+        layout.addWidget(revLabel, 0, 2)
+        layout.addWidget(self.revLetter, 0, 3)
+        
+        # upload date form
+        udLabel = QLabel('Last Net-Inspect Upload Date:')
+        self.uploadDate = QLabel('')
+        layout.addWidget(udLabel, 0, 4)
+        layout.addWidget(self.uploadDate, 0, 5)
+
+        # Submit button Button
+        addFeatureButton = QPushButton('Add Management Form')
+        addFeatureButton.clicked.connect(self.addForm)
+        layout.addWidget(addFeatureButton, 5, 1, 1, 3)
+        
+        cancelButton = QPushButton('Cancel')
+        cancelButton.setStyleSheet("background-color: #D6575D")
+        cancelButton.clicked.connect(self.closeWindow)
+        layout.addWidget(cancelButton, 7, 0, 1, 5)
+        
+        self.featureTable = QTableWidget()
+        self.featureTable.setColumnCount(6)
+        self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Operation Number", "Tolerance", "Engine"])
+        self.featureTable.horizontalHeader().setStretchLastSection(False)
+        for column in range(self.featureTable.columnCount()):
+            self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+        self.featureTable.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            
+        layout.addWidget(self.featureTable, 4, 0, 1, 6)
+        
+        
+        self.setLayout(layout)
+        
+    def addForm(self):
+        print('addform')
+        
+    def loadPartData(self, selectedPartData):
+        self.partNumber.setText(selectedPartData['partNumber'])
+        self.revLetter.setText(selectedPartData['rev'])
+        self.uploadDate.setText(selectedPartData['uploadDate'])
+        
+        self.featureTable.setRowCount(0)
+        for feature in selectedPartData['features']:
+            functions.addFeatureToTable(self, feature)
+        
+    def closeWindow(self):
+        self.close()
