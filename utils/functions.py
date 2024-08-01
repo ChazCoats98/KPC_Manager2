@@ -608,9 +608,11 @@ class Worker(QObject):
                 cpl = (mean - lsl) / (3 * sigma)
                 
                 cpk = min(cpl, cpu)
+                print(f'cpk: {cpk}')
                 cpk_values[kpc] = cpk
             else: 
-                calc_type, ppk = self.calculate_ppk(percentiles, tolerances)
+                calc_type, ppk = self.calculate_ppk(percentiles[kpc], tolerances[kpc])
+                print(f'ppk: {ppk}')
                 cpk_values[kpc] =  ppk
         
             print(cpk_values)
@@ -634,7 +636,7 @@ class Worker(QObject):
 
     def calculate_dist(self, measurements, tolerances):
         mtb = win32com.client.Dispatch("Mtb.Application.1")
-        mtb.UserInterface.Visible = True
+        mtb.UserInterface.Visible = False
         project = mtb.ActiveProject
         worksheet = project.ActiveWorksheet
         columns = worksheet.Columns
@@ -797,32 +799,31 @@ class Worker(QObject):
     #Simple math for PPK calculations
     def calculate_ppk(self, percentiles, tolerances):
         print(percentiles)
-        for kpc, percentile in percentiles.items():
-            usl, lsl = tolerances[kpc]
-            if usl is not None and lsl is not None:
-                if usl < lsl:
-                    usl, lsl = lsl, usl
+        usl, lsl = tolerances
+        if usl is not None and lsl is not None:
+            if usl < lsl:
+                usl, lsl = lsl, usl
             
-            low = percentile['0.135th Percentile']
-            med = percentile['50.000th Percentile']
-            high = percentile['99.865th Percentile']
-            print(low, med, high)
-            if usl is None and lsl is not None:
-                ppl = (med - lsl) / (med - low)
-                ppu = None
-            elif usl is not None and lsl is not None:
-                ppu = (usl - med) / (high - med)
-                ppl = (med - lsl) / (med - low)
-            elif lsl is None and usl is not None:
-                ppu = (usl - med) / (high - med)
-                ppl = None
+        low = percentiles['0.135th Percentile']
+        med = percentiles['50.000th Percentile']
+        high = percentiles['99.865th Percentile']
+        print(low, med, high)
+        if usl is None and lsl is not None:
+            ppl = (med - lsl) / (med - low)
+            ppu = None
+        elif usl is not None and lsl is not None:
+            ppu = (usl - med) / (high - med)
+            ppl = (med - lsl) / (med - low)
+        elif lsl is None and usl is not None:
+            ppu = (usl - med) / (high - med)
+            ppl = None
             
-            if ppu > ppl:
-                calc_type = 'PPU'
-                return calc_type, ppu
-            else: 
-                calc_type = 'PPL'
-                return calc_type, ppl
+        if ppu > ppl:
+            calc_type = 'PPU'
+            return calc_type, ppu
+        else: 
+            calc_type = 'PPL'
+            return calc_type, ppl
             
     def parse_tolerance(self, tolerance):
         range_pattern = re.compile(r'(?<!\S)(\d*\.\d+)\s*-\s*(\d*\.\d+)(?!\S)')
@@ -842,10 +843,18 @@ class Worker(QObject):
         return None, None
     
     def get_perc_format(self, d, best_fit, best_fit_params):
+        print(f'Best Fit: {best_fit} \nbest fit params: {best_fit_params}')
         if best_fit == 'Largest Extreme Value':
             return f'InvCDF C{d + 1} C{d + 2}; Lextremevalue {best_fit_params['location']} {best_fit_params['scale']}.'
+        elif best_fit == 'Smallest Extreme Value':
+            return f'InvCDF C{d + 1} C{d + 2}; Sextremevalue {best_fit_params['location']} {best_fit_params['scale']}.'
+        elif best_fit == 'Weibull':
+            return f'InvCDF C{d + 1} C{d + 2}; {best_fit} {best_fit_params['shape']} {best_fit_params['scale']}.'
+        elif best_fit == 'Exponential':
+            return f'InvCDF C{d + 1} C{d + 2}; {best_fit} {best_fit_params['scale']} 0.'
+        elif best_fit == '2-Parameter Exponential':
+            return f'InvCDF C{d + 1} C{d + 2}; Exponential {best_fit_params['scale']} {best_fit_params['threshold']}.'
         else:
-            print(best_fit)
             return f'InvCDF C{d + 1} C{d + 2}; {best_fit} {best_fit_params['location']} {best_fit_params['scale']}.'
         
 #Attempt at calculating the nth percentile using scipy. Not currently being used
