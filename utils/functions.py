@@ -217,9 +217,15 @@ def addKPCToTable(self):
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable | ~Qt.ItemIsSelectable)
                 self.kpcTable.setItem(row_position, col, item)
                 
-def distributeHeadersEqually(self):
-    header = self.kpcTable.horizontalHeader()
-        
+def setMinHeaderWidth(self):
+    font = self.kpcTable.horizontalHeader().font()
+    font_metrics = QFontMetrics(font)
+    
+    for col in range(self.kpcTable.columnCount()):
+        header_text = self.kpcTable.horizontalHeaderItem(col).text()
+        text_width = font_metrics.width(header_text) + 10
+        self.kpcTable.horizontalHeader().setMinimumSectionSize(text_width)
+        self.kpcTable.setColumnWidth(col, text_width)
         
 
 #_____________________________#
