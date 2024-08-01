@@ -184,6 +184,10 @@ def addFeatureToTable(self, feature_data):
             value = feature_data.get(key, '')
             self.featureTable.setItem(row_position, i, QTableWidgetItem(value))
             
+#_____________________________#
+##KPC Snapshot View Functions##
+#_____________________________#
+            
 def addKPCToTable(self):
         self.kpcTable.setRowCount(0)
         data = database.get_all_data()
@@ -193,12 +197,13 @@ def addKPCToTable(self):
         for part in data:
             for feature in part['features']:
                 if 'cpk' in feature:
-                    features.append((
-                        part['partNumber'], 
-                        feature['kpcNum'], 
-                        feature['tol'], 
-                        part['uploadDate'], 
-                        feature['cpk']
+                    if feature['cpk'] < 1.33:
+                        features.append((
+                            part['partNumber'], 
+                            feature['kpcNum'], 
+                            feature['tol'], 
+                            part['uploadDate'], 
+                            feature['cpk']
                         ))
                 
         features.sort(key=lambda x: x[4])
@@ -208,7 +213,12 @@ def addKPCToTable(self):
             self.kpcTable.insertRow(row_position)
             
             for col, data in enumerate(feature):
-                self.kpcTable.setItem(row_position, col, QTableWidgetItem(str(data)))
+                item = QTableWidgetItem(str(data))
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable | ~Qt.ItemIsSelectable)
+                self.kpcTable.setItem(row_position, col, item)
+                
+def distributeHeadersEqually(self):
+    header = self.kpcTable.horizontalHeader()
         
         
 

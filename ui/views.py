@@ -992,16 +992,25 @@ class KPCSummaryWind(QWidget):
         super().__init__()
         
         self.setWindowTitle("KPC Summary Window")
-        self.resize(800, 600)
+        self.resize(1200, 800)
         
         layout = QGridLayout()
         
         self.kpcTable = QTableWidget()
-        self.kpcTable.setColumnCount(5)
-        self.kpcTable.setHorizontalHeaderLabels(["Part Number", "KPC Number", "Dimension", "Last Data Upload Date", "CPK Value"])
-        self.kpcTable.horizontalHeader().setStretchLastSection(False)
+        self.kpcTable.setColumnCount(7)
+        self.kpcTable.setHorizontalHeaderLabels(['Part Number', 'KPC Number', 'Dimension', 'Last Data Upload Date', 'CPK Value', 'Management Form Upload Date', 'Management Form Expiration Date'])
+        header = self.kpcTable.horizontalHeader()
         for column in range(self.kpcTable.columnCount()):
-            self.kpcTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+            header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
+        
+        total_content_width = sum(header.sectionSize(column) for column in range(self.kpcTable.columnCount()))
+        available_width = total_content_width - self.kpcTable.viewport().width() 
+        print(self.kpcTable.viewport().width())
+        print(available_width)
+        if available_width > 0:
+            for column in range(self.kpcTable.columnCount()):
+                header.setSectionResizeMode(column, QHeaderView.Stretch)
+                
         functions.addKPCToTable(self)
             
         layout.addWidget(self.kpcTable, 4, 0, 1, 5)
