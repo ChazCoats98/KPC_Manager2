@@ -191,5 +191,5 @@ def add_management_form(form, callback=None):
             callback(False)
             
 def get_form_by_pn(pn):
-    response = forms.find_one({'partNumber': pn})
-    return response
+    response = forms.find({'partNumber': pn})
+    return list(response)

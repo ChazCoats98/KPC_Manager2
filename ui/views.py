@@ -129,13 +129,8 @@ class DashboardView(QMainWindow):
             QMessageBox.warning(self, "Error", "Failed to identify selected part.")
             return
         
-        selectedPartData = database.get_part_by_id(part_id)
-        if not selectedPartData:
-            QMessageBox.warning(self, "Error", "Could not find part data.")
-            return
-        
         self.manForm = ManagementFormWind(partId=part_id)
-        self.manForm.loadPartData(selectedPartData)
+        self.manForm.loadPartData()
         self.manForm.show()
         
     def openPpapPartForm(self):
@@ -1094,10 +1089,12 @@ class ManagementFormWind(QWidget):
                 self.selectedKpcs.append((kpc_number, tolerance))
                 
         self.addForm = ManagementFormAdd(self, self.partId, self.selectedKpcs)
+        self.addForm.formSubmitted.connect(self.loadPartData)
         self.addForm.show()
         
-    def loadPartData(self, selectedPartData):
+    def loadPartData(self):
         formData = database.get_form_by_pn(self.partId)
+        selectedPartData = database.get_part_by_id(self.partId)
         print(formData)
         self.partNumber.setText(selectedPartData['partNumber'])
         self.revLetter.setText(selectedPartData['rev'])
@@ -1105,11 +1102,13 @@ class ManagementFormWind(QWidget):
         
         self.featureTable.setRowCount(0)
         for feature in selectedPartData['features']:
-            if feature['kpcNum'] in formData['kpcs']:
-                feature['formNumber'] = formData['formNumber']
-                feature['uploadDate'] = formData['uploadDate']
-                feature['dueDate'] = formData['dueDate']
-            functions.addFeatureToFormTable(self, feature)
+            if formData:
+                for data in formData:
+                    if feature['kpcNum'] in data['kpcs']:
+                        feature['formNumber'] = data['formNumber']
+                        feature['uploadDate'] = data['uploadDate']
+                        feature['dueDate'] = data['dueDate']
+                functions.addFeatureToFormTable(self, feature)
             
     def handleItemClicked(self, item):
         if item.checkState() == Qt.Checked:
@@ -1120,6 +1119,7 @@ class ManagementFormWind(QWidget):
         self.close()
         
 class ManagementFormAdd(QWidget):
+    formSubmitted = pyqtSignal()
     def __init__(self, parent, partId, selectedKpcs, mode='add'):
         super().__init__()
         self.setWindowTitle("Add Management Form")
@@ -1209,7 +1209,7 @@ class ManagementFormAdd(QWidget):
         for kpc, tol in self.selectedKpcs:
             formData['kpcs'].append(kpc)
         
-        database.add_management_form(formData)
+        database.add_management_form(formData, callback=self.onSubmitSuccess)
         
         self.close()
         
@@ -1220,3 +1220,7 @@ class ManagementFormAdd(QWidget):
     def dueCal(self):
         self.dueCalendar = QCalendarWidget(self)
         self.dueCalendar.show()
+        
+    def onSubmitSuccess(self, isSuccess):
+        if isSuccess:
+            self.formSubmitted.emit()
