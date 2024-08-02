@@ -1125,29 +1125,23 @@ class ManagementFormAdd(QWidget):
         layout = QGridLayout()
         
         # Part number form 
-        formLabel = QLabel('Management Form Number:')
+        formLabel = QLabel('Form Number:')
         self.formInput = QLineEdit()
         self.formInput.setPlaceholderText('Enter form number')
         layout.addWidget(formLabel, 0, 0)
-        layout.addWidget(self.formInput, 1, 0)
+        layout.addWidget(self.formInput, 0, 1)
         
         # Part revision form
-        udLabel = QLabel('Management Form Upload Date:')
-        udIcon = fugue.icon('calendar-blue')
-        self.udButton = QPushButton()
-        self.udButton.setIcon(QIcon(udIcon))
-        self.udButton.clicked.connect(self.uploadCal)
-        layout.addWidget(udLabel, 0, 1)
-        layout.addWidget(self.udButton, 1, 1)
+        udLabel = QLabel('Upload Date:')
+        self.udBox = QDateEdit()
+        layout.addWidget(udLabel, 0, 2)
+        layout.addWidget(self.udBox, 0, 3)
         
         # upload date form
-        ddLabel = QLabel('Management Form Expiration Date:')
-        ddIcon = fugue.icon('calendar-select')
-        self.ddButton = QPushButton()
-        self.ddButton.setIcon(ddIcon)
-        self.ddButton.clicked.connect(self.dueCal)
-        layout.addWidget(ddLabel, 0, 2)
-        layout.addWidget(self.ddButton, 1, 2)
+        ddLabel = QLabel('Expiration Date:')
+        self.ddBox = QDateEdit()
+        layout.addWidget(ddLabel, 0, 4)
+        layout.addWidget(self.ddBox, 0, 5)
         
         self.featureTable = QTableWidget()
         self.featureTable.setColumnCount(2)
@@ -1157,19 +1151,19 @@ class ManagementFormAdd(QWidget):
             self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
         self.featureTable.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.addKpcToTable()
-        layout.addWidget(self.featureTable, 4, 0, 1, 3)
+        layout.addWidget(self.featureTable, 3, 0, 3, 3)
         
         # Notes form
         notesLabel = QLabel('Proposed Process Change:')
-        self.notesInput = QLineEdit()
+        self.notesInput = QTextEdit()
         self.notesInput.setPlaceholderText('Enter notes')
         layout.addWidget(notesLabel, 3, 3)
-        layout.addWidget(self.notesInput, 4, 3, 3, 3)
+        layout.addWidget(self.notesInput, 3, 3, 3, 3)
         
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
         addFeatureButton.clicked.connect(self.addFeature)
-        layout.addWidget(addFeatureButton, 5, 0, 1, 4)
+        layout.addWidget(addFeatureButton, 7, 0, 1, 4)
         
         self.setLayout(layout)
         
