@@ -1133,13 +1133,14 @@ class ManagementFormAdd(QWidget):
         
         # Part revision form
         udLabel = QLabel('Upload Date:')
-        self.udBox = QDateEdit()
+        self.udBox = QDateEdit(date.today())
         layout.addWidget(udLabel, 0, 2)
         layout.addWidget(self.udBox, 0, 3)
         
         # upload date form
         ddLabel = QLabel('Expiration Date:')
-        self.ddBox = QDateEdit()
+        ddate = date.today() + timedelta(days=365)
+        self.ddBox = QDateEdit(ddate)
         layout.addWidget(ddLabel, 0, 4)
         layout.addWidget(self.ddBox, 0, 5)
         
@@ -1156,7 +1157,7 @@ class ManagementFormAdd(QWidget):
         # Notes form
         notesLabel = QLabel('Proposed Process Change:')
         self.notesInput = QTextEdit()
-        self.notesInput.setPlaceholderText('Enter notes')
+        self.notesInput.setPlaceholderText('Enter Management form process change')
         layout.addWidget(notesLabel, 3, 3)
         layout.addWidget(self.notesInput, 3, 3, 3, 3)
         

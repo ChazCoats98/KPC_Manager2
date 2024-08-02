@@ -128,7 +128,6 @@ def submitPpap(self):
 
 #Adds new part or updates current selected part if in edit mode
 def submitPart(self):
-                
         upload_date_str = self.udInput.text().strip()
         if not upload_date_str:
             QMessageBox.warning(self, "Error", "Upload date cannot be empty.")

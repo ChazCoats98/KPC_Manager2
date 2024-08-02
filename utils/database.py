@@ -8,6 +8,7 @@ client: MongoClient = MongoClient()
 kpcdb = client['KPCManager']
 parts = kpcdb['parts']
 ppap = kpcdb['ppap']
+forms = kpcdb['forms']
 measurements = kpcdb['measurements']
 
 def get_all_data():
@@ -172,3 +173,19 @@ def update_dates():
         else:
             print(f'Skipped document {document["_id"]}: date format already correct or unexpected error')
     print("Date format update completed")
+    
+def add_management_form(form, callback=None):
+    try:
+        result = forms.insert_one(form)
+        if result.acknowledged:
+            print('Form upload successful')
+            if callback:
+                callback(True)
+        else:
+            print('Form upload failed')
+            if callback:
+                callback(False)
+    except Exception as e:
+        print(e)
+        if callback:
+            callback(False)
