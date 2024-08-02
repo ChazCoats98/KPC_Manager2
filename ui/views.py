@@ -1097,12 +1097,18 @@ class ManagementFormWind(QWidget):
         self.addForm.show()
         
     def loadPartData(self, selectedPartData):
+        formData = database.get_form_by_pn(self.partId)
+        print(formData)
         self.partNumber.setText(selectedPartData['partNumber'])
         self.revLetter.setText(selectedPartData['rev'])
         self.uploadDate.setText(selectedPartData['uploadDate'])
         
         self.featureTable.setRowCount(0)
         for feature in selectedPartData['features']:
+            if feature['kpcNum'] in formData['kpcs']:
+                feature['formNumber'] = formData['formNumber']
+                feature['uploadDate'] = formData['uploadDate']
+                feature['dueDate'] = formData['dueDate']
             functions.addFeatureToFormTable(self, feature)
             
     def handleItemClicked(self, item):

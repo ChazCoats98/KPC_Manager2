@@ -190,5 +190,6 @@ def add_management_form(form, callback=None):
         if callback:
             callback(False)
             
-def get_form_by_kpc(self, kpc):
-    
+def get_form_by_pn(pn):
+    response = forms.find_one({'partNumber': pn})
+    return response
