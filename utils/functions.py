@@ -191,7 +191,11 @@ def addFeatureToFormTable(self, feature_data):
         keys = ['feature', 'designation', 'kpcNum', 'opNum', 'tol', 'cpk']
         for i, key in enumerate(keys):
             value = feature_data.get(key, '')
-            self.featureTable.setItem(row_position, i, QTableWidgetItem(str(value)))
+            checkboxItem = QTableWidgetItem()
+            checkboxItem.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            checkboxItem.setCheckState(Qt.Unchecked)
+            self.featureTable.setItem(row_position, 0, checkboxItem)
+            self.featureTable.setItem(row_position, i + 1, QTableWidgetItem(str(value)))
             
 #_____________________________#
 ##KPC Snapshot View Functions##

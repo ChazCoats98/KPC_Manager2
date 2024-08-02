@@ -1070,8 +1070,8 @@ class ManagementFormWind(QWidget):
         layout.addWidget(cancelButton, 7, 0, 1, 5)
         
         self.featureTable = QTableWidget()
-        self.featureTable.setColumnCount(9)
-        self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Operation Number", "Tolerance", "CPK", "Management Form Number", "Management Form Upload Date", "Management Form Due Date"])
+        self.featureTable.setColumnCount(10)
+        self.featureTable.setHorizontalHeaderLabels(["Select KPC", "Feature Number", "KPC Designation", "KPC Number", "Operation Number", "Tolerance", "CPK", "Management Form Number", "Management Form Upload Date", "Management Form Expiration Date"])
         self.featureTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.featureTable.columnCount()):
             self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
@@ -1083,7 +1083,8 @@ class ManagementFormWind(QWidget):
         self.setLayout(layout)
         
     def addForm(self):
-        print('addform')
+        self.addForm = ManagementFormAdd(self)
+        self.addForm.show()
         
     def loadPartData(self, selectedPartData):
         self.partNumber.setText(selectedPartData['partNumber'])
@@ -1098,33 +1099,47 @@ class ManagementFormWind(QWidget):
         self.close()
         
 class ManagementFormAdd(QWidget):
-    def __init__(self):
+    def __init__(self, mode='add'):
         super().__init__()
         self.setWindowTitle("Add Management Form")
         self.resize(800, 600)
         
+        self.mode = mode
+        
         layout = QGridLayout()
         
         # Part number form 
-        partLabel = QLabel('Part Number:')
-        self.partInput = QLineEdit()
-        self.partInput.setPlaceholderText('Enter part number')
-        layout.addWidget(partLabel, 0, 0)
-        layout.addWidget(self.partInput, 1, 0)
+        formLabel = QLabel('Management Form Number:')
+        self.formInput = QLineEdit()
+        self.formInput.setPlaceholderText('Enter form number')
+        layout.addWidget(formLabel, 0, 0)
+        layout.addWidget(self.formInput, 1, 0)
         
         # Part revision form
-        revLabel = QLabel('Revision Letter:')
-        self.revInput = QLineEdit()
-        self.revInput.setPlaceholderText('Enter revision letter')
-        layout.addWidget(revLabel, 0, 1)
-        layout.addWidget(self.revInput, 1, 1)
+        udLabel = QLabel('Management Form Upload Date:')
+        udIcon = fugue.icon('calendar-blue')
+        self.udButton = QPushButton()
+        self.udButton.setIcon(QIcon(udIcon))
+        self.udButton.clicked.connect(self.uploadCal)
+        layout.addWidget(udLabel, 0, 1)
+        layout.addWidget(self.udButton, 1, 1)
         
         # upload date form
-        udLabel = QLabel('Last Net-Inspect Upload Date:')
-        self.udInput = QLineEdit()
-        self.udInput.setPlaceholderText('Enter upload date')
-        layout.addWidget(udLabel, 0, 2)
-        layout.addWidget(self.udInput, 1, 2)
+        ddLabel = QLabel('Management Form Expiration Date:')
+        ddIcon = fugue.icon('calendar-select')
+        self.ddButton = QPushButton()
+        self.ddButton.setIcon(ddIcon)
+        self.ddButton.clicked.connect(self.dueCal)
+        layout.addWidget(ddLabel, 0, 2)
+        layout.addWidget(self.ddButton, 1, 2)
+        
+        self.featureTable = QTableWidget()
+        self.featureTable.setColumnCount(2)
+        self.featureTable.setHorizontalHeaderLabels([ "KPC Number", "Tolerance"])
+        self.featureTable.horizontalHeader().setStretchLastSection(False)
+        for column in range(self.featureTable.columnCount()):
+            self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+        self.featureTable.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
         
         # Notes form
         notesLabel = QLabel('Notes:')
@@ -1133,11 +1148,20 @@ class ManagementFormAdd(QWidget):
         layout.addWidget(notesLabel, 0, 3)
         layout.addWidget(self.notesInput, 1, 3)
         
-        #No current manufacturing flag
-        self.manufacturingCheck = QCheckBox(text="No Current Manufacturing")
-        layout.addWidget(self.manufacturingCheck, 1, 4)
-        
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
         addFeatureButton.clicked.connect(self.addFeature)
         layout.addWidget(addFeatureButton, 5, 1, 1, 3)
+        
+        self.setLayout(layout)
+        
+    def addFeature(self):
+        print('feature')
+        
+    def uploadCal(self):
+        self.uploadCalendar = QCalendarWidget(self)
+        self.uploadCalendar.show()
+        
+    def dueCal(self):
+        self.dueCalendar = QCalendarWidget(self)
+        self.dueCalendar.show()
