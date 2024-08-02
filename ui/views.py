@@ -1036,6 +1036,7 @@ class ManagementFormWind(QWidget):
         super().__init__()
         
         self.partId = partId
+        self.selectedKpcs = []
         self.setWindowTitle("KPC Management Forms")
         self.resize(1000, 600)
         
@@ -1083,7 +1084,16 @@ class ManagementFormWind(QWidget):
         self.setLayout(layout)
         
     def addForm(self):
-        self.addForm = ManagementFormAdd(self)
+        self.selectedKpcs.clear()
+        
+        for row in range(self.featureTable.rowCount()):
+            checkbox = self.featureTable.cellWidget(row, 0)
+            if checkbox is not None and checkbox.isChecked():
+                kpc_number = self.featureTable.item(row, 3).text()
+                tolerance = self.featureTable.item(row, 5).text()
+                self.selectedKpcs.append((kpc_number, tolerance))
+                
+        self.addForm = ManagementFormAdd(self, self.selectedKpcs)
         self.addForm.show()
         
     def loadPartData(self, selectedPartData):
@@ -1094,17 +1104,23 @@ class ManagementFormWind(QWidget):
         self.featureTable.setRowCount(0)
         for feature in selectedPartData['features']:
             functions.addFeatureToFormTable(self, feature)
+            
+    def handleItemClicked(self, item):
+        if item.checkState() == Qt.Checked:
+            self.selectedKpcs.append(item.row())
+            print(self.selectedKpcs)
         
     def closeWindow(self):
         self.close()
         
 class ManagementFormAdd(QWidget):
-    def __init__(self, mode='add'):
+    def __init__(self, parent, selectedKpcs, mode='add'):
         super().__init__()
         self.setWindowTitle("Add Management Form")
         self.resize(800, 600)
         
         self.mode = mode
+        self.selectedKpcs = selectedKpcs
         
         layout = QGridLayout()
         
@@ -1140,20 +1156,34 @@ class ManagementFormAdd(QWidget):
         for column in range(self.featureTable.columnCount()):
             self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
         self.featureTable.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.addKpcToTable()
+        layout.addWidget(self.featureTable, 4, 0, 1, 3)
         
         # Notes form
-        notesLabel = QLabel('Notes:')
+        notesLabel = QLabel('Proposed Process Change:')
         self.notesInput = QLineEdit()
         self.notesInput.setPlaceholderText('Enter notes')
-        layout.addWidget(notesLabel, 0, 3)
-        layout.addWidget(self.notesInput, 1, 3)
+        layout.addWidget(notesLabel, 3, 3)
+        layout.addWidget(self.notesInput, 4, 3, 3, 3)
         
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
         addFeatureButton.clicked.connect(self.addFeature)
-        layout.addWidget(addFeatureButton, 5, 1, 1, 3)
+        layout.addWidget(addFeatureButton, 5, 0, 1, 4)
         
         self.setLayout(layout)
+        
+    def addKpcToTable(self):        
+        if self.selectedKpcs:
+            print(self.selectedKpcs)
+            for i, (kpc, tol) in enumerate(self.selectedKpcs):
+                row_position = self.featureTable.rowCount()
+                self.featureTable.insertRow(row_position)
+                print(kpc)
+                print(tol)
+                self.featureTable.setItem(row_position, 0, QTableWidgetItem(str(kpc)))
+                self.featureTable.setItem(row_position, 1, QTableWidgetItem(str(tol)))
+                
         
     def addFeature(self):
         print('feature')

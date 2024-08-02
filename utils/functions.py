@@ -191,10 +191,9 @@ def addFeatureToFormTable(self, feature_data):
         keys = ['feature', 'designation', 'kpcNum', 'opNum', 'tol', 'cpk']
         for i, key in enumerate(keys):
             value = feature_data.get(key, '')
-            checkboxItem = QTableWidgetItem()
-            checkboxItem.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
-            checkboxItem.setCheckState(Qt.Unchecked)
-            self.featureTable.setItem(row_position, 0, checkboxItem)
+            checkbox = QCheckBox()
+            checkbox.setCheckState(False)
+            self.featureTable.setCellWidget(row_position, 0, checkbox)
             self.featureTable.setItem(row_position, i + 1, QTableWidgetItem(str(value)))
             
 #_____________________________#
