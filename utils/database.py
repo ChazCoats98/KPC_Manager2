@@ -189,3 +189,6 @@ def add_management_form(form, callback=None):
         print(e)
         if callback:
             callback(False)
+            
+def get_form_by_kpc(self, kpc):
+    

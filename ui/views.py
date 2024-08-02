@@ -1093,7 +1093,7 @@ class ManagementFormWind(QWidget):
                 tolerance = self.featureTable.item(row, 5).text()
                 self.selectedKpcs.append((kpc_number, tolerance))
                 
-        self.addForm = ManagementFormAdd(self, self.selectedKpcs)
+        self.addForm = ManagementFormAdd(self, self.partId, self.selectedKpcs)
         self.addForm.show()
         
     def loadPartData(self, selectedPartData):
@@ -1114,12 +1114,13 @@ class ManagementFormWind(QWidget):
         self.close()
         
 class ManagementFormAdd(QWidget):
-    def __init__(self, parent, selectedKpcs, mode='add'):
+    def __init__(self, parent, partId, selectedKpcs, mode='add'):
         super().__init__()
         self.setWindowTitle("Add Management Form")
         self.resize(800, 600)
         
         self.mode = mode
+        self.partId = partId
         self.selectedKpcs = selectedKpcs
         
         layout = QGridLayout()
@@ -1163,7 +1164,7 @@ class ManagementFormAdd(QWidget):
         
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
-        addFeatureButton.clicked.connect(self.addFeature)
+        addFeatureButton.clicked.connect(self.saveForm)
         layout.addWidget(addFeatureButton, 7, 0, 1, 4)
         
         self.setLayout(layout)
@@ -1180,8 +1181,31 @@ class ManagementFormAdd(QWidget):
                 self.featureTable.setItem(row_position, 1, QTableWidgetItem(str(tol)))
                 
         
-    def addFeature(self):
-        print('feature')
+    def saveForm(self):
+        formNum = self.formInput.text().strip()
+        formLText = self.notesInput.toPlainText()
+        if not formNum:
+            QMessageBox.warning(self, "Error", "You must enter a form number.")
+            return
+        elif not formLText:
+            QMessageBox.warning(self, "Error", "Please enter process changes made.")
+            return
+        
+        formData = {
+            'partNumber': self.partId,
+            'formNumber': formNum,
+            'uploadDate': self.udBox.text(),
+            'dueDate': self.ddBox.text(),
+            'formText': formLText,
+            'kpcs': []
+        }
+        
+        for kpc, tol in self.selectedKpcs:
+            formData['kpcs'].append(kpc)
+        
+        database.add_management_form(formData)
+        
+        self.close()
         
     def uploadCal(self):
         self.uploadCalendar = QCalendarWidget(self)
