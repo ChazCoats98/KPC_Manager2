@@ -184,6 +184,15 @@ def addFeatureToTable(self, feature_data):
             value = feature_data.get(key, '')
             self.featureTable.setItem(row_position, i, QTableWidgetItem(value))
             
+def addFeatureToFormTable(self, feature_data):
+        row_position = self.featureTable.rowCount()
+        self.featureTable.insertRow(row_position)
+        
+        keys = ['feature', 'designation', 'kpcNum', 'opNum', 'tol', 'cpk']
+        for i, key in enumerate(keys):
+            value = feature_data.get(key, '')
+            self.featureTable.setItem(row_position, i, QTableWidgetItem(str(value)))
+            
 #_____________________________#
 ##KPC Snapshot View Functions##
 #_____________________________#

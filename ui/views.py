@@ -1037,7 +1037,7 @@ class ManagementFormWind(QWidget):
         
         self.partId = partId
         self.setWindowTitle("KPC Management Forms")
-        self.resize(800, 600)
+        self.resize(1000, 600)
         
         layout = QGridLayout()
         
@@ -1070,8 +1070,8 @@ class ManagementFormWind(QWidget):
         layout.addWidget(cancelButton, 7, 0, 1, 5)
         
         self.featureTable = QTableWidget()
-        self.featureTable.setColumnCount(6)
-        self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Operation Number", "Tolerance", "Engine"])
+        self.featureTable.setColumnCount(9)
+        self.featureTable.setHorizontalHeaderLabels(["Feature Number", "KPC Designation", "KPC Number", "Operation Number", "Tolerance", "CPK", "Management Form Number", "Management Form Upload Date", "Management Form Due Date"])
         self.featureTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.featureTable.columnCount()):
             self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
@@ -1092,7 +1092,52 @@ class ManagementFormWind(QWidget):
         
         self.featureTable.setRowCount(0)
         for feature in selectedPartData['features']:
-            functions.addFeatureToTable(self, feature)
+            functions.addFeatureToFormTable(self, feature)
         
     def closeWindow(self):
         self.close()
+        
+class ManagementFormAdd(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Add Management Form")
+        self.resize(800, 600)
+        
+        layout = QGridLayout()
+        
+        # Part number form 
+        partLabel = QLabel('Part Number:')
+        self.partInput = QLineEdit()
+        self.partInput.setPlaceholderText('Enter part number')
+        layout.addWidget(partLabel, 0, 0)
+        layout.addWidget(self.partInput, 1, 0)
+        
+        # Part revision form
+        revLabel = QLabel('Revision Letter:')
+        self.revInput = QLineEdit()
+        self.revInput.setPlaceholderText('Enter revision letter')
+        layout.addWidget(revLabel, 0, 1)
+        layout.addWidget(self.revInput, 1, 1)
+        
+        # upload date form
+        udLabel = QLabel('Last Net-Inspect Upload Date:')
+        self.udInput = QLineEdit()
+        self.udInput.setPlaceholderText('Enter upload date')
+        layout.addWidget(udLabel, 0, 2)
+        layout.addWidget(self.udInput, 1, 2)
+        
+        # Notes form
+        notesLabel = QLabel('Notes:')
+        self.notesInput = QLineEdit()
+        self.notesInput.setPlaceholderText('Enter notes')
+        layout.addWidget(notesLabel, 0, 3)
+        layout.addWidget(self.notesInput, 1, 3)
+        
+        #No current manufacturing flag
+        self.manufacturingCheck = QCheckBox(text="No Current Manufacturing")
+        layout.addWidget(self.manufacturingCheck, 1, 4)
+        
+        # Submit button Button
+        addFeatureButton = QPushButton('Add Feature')
+        addFeatureButton.clicked.connect(self.addFeature)
+        layout.addWidget(addFeatureButton, 5, 1, 1, 3)
