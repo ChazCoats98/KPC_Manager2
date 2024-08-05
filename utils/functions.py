@@ -621,6 +621,7 @@ class Worker(QObject):
                             measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
 
         for kpc, measurements in measurements_by_kpc.items():
+            print(measurements)
             if len(measurements) <= 3:
                 self.init_dialog.emit(self.parent, 'Too Few Data Points', 'Not enough data points. Skipping CPK calculation')
                 return
@@ -673,7 +674,7 @@ class Worker(QObject):
 
     def calculate_dist(self, measurements, tolerances):
         mtb = win32com.client.Dispatch("Mtb.Application.1")
-        mtb.UserInterface.Visible = False
+        mtb.UserInterface.Visible = True
         project = mtb.ActiveProject
         worksheet = project.ActiveWorksheet
         columns = worksheet.Columns
@@ -738,40 +739,42 @@ class Worker(QObject):
         return dist_data, p_res
 
     def parse_goodness_of_fit(self, output):
-        gof_start = re.search(r'Distribution\s+AD\s+P\s+LRT P', output).end()
-        gof_end = re.search(r"ML Estimates of Distribution Parameters", output).start()
-        gof_table = output[gof_start:gof_end].strip()
-        parsed_data = {}
-        for line in gof_table.strip().split("\n"):
-            parts = re.split(r'\s{2,}', line)
+        print(output)
+        if output:
+            gof_start = re.search(r'Distribution\s+AD\s+P\s+LRT P', output).end()
+            gof_end = re.search(r"ML Estimates of Distribution Parameters", output).start()
+            gof_table = output[gof_start:gof_end].strip()
+            parsed_data = {}
+            for line in gof_table.strip().split("\n"):
+                parts = re.split(r'\s{2,}', line)
         
-            distribution = parts[0].strip()
-            AD, P, LRT_P = None, None, None
-            if distribution.startswith('3-Parameter Lognormal') or distribution.startswith('3-Parameter Gamma') or distribution.startswith('3-Parameter Loglogistic'):
-                AD, LRT_P = float(parts[-3]), parts[-1].strip()
-                LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
-            elif distribution.startswith('2-Parameter Exponential') or distribution.startswith('3-Parameter Weibull'):
-                AD, P, LRT_P = float(parts[-3]), parts[-2], parts[-1].strip()
-                LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
-            else:
-                AD, P = float(parts[-2]), parts[-1].strip()
-                P = float(P) if P.replace('.', '', 1).isdigit() else P
+                distribution = parts[0].strip()
+                AD, P, LRT_P = None, None, None
+                if distribution.startswith('3-Parameter Lognormal') or distribution.startswith('3-Parameter Gamma') or distribution.startswith('3-Parameter Loglogistic'):
+                    AD, LRT_P = float(parts[-3]), parts[-1].strip()
+                    LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
+                elif distribution.startswith('2-Parameter Exponential') or distribution.startswith('3-Parameter Weibull'):
+                    AD, P, LRT_P = float(parts[-3]), parts[-2], parts[-1].strip()
+                    LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
+                else:
+                    AD, P = float(parts[-2]), parts[-1].strip()
+                    P = float(P) if P.replace('.', '', 1).isdigit() else P
             
-            if isinstance(P, str) and (P.startswith('>') or P.startswith('<')):
-                P = float(P[1:])
-            if isinstance(LRT_P, str) and (LRT_P.startswith('>') or LRT_P.startswith('<')):
-                LRT_P = float(LRT_P[1:])
+                if isinstance(P, str) and (P.startswith('>') or P.startswith('<')):
+                    P = float(P[1:])
+                if isinstance(LRT_P, str) and (LRT_P.startswith('>') or LRT_P.startswith('<')):
+                    LRT_P = float(LRT_P[1:])
             
-            parsed_data[distribution] = {
-                'AD': AD,
-                'P': P,
-                'LRT_P': LRT_P,
-            }
+                parsed_data[distribution] = {
+                    'AD': AD,
+                    'P': P,
+                    'LRT_P': LRT_P,
+                }
         
-            unwanted_dist = ['Box-Cox Transformation', 'Johnson Transformation', '3-Parameter Loglogistic', '3-Parameter Lognormal', 'Loglogistic', '3-Parameter Weibull', '3-Parameter Gamma']
-            filtered_data = {dist: values for dist, values in parsed_data.items() if dist not in unwanted_dist}
+                unwanted_dist = ['Box-Cox Transformation', 'Johnson Transformation', '3-Parameter Loglogistic', '3-Parameter Lognormal', 'Loglogistic', '3-Parameter Weibull', '3-Parameter Gamma']
+                filtered_data = {dist: values for dist, values in parsed_data.items() if dist not in unwanted_dist}
         
-        return filtered_data
+            return filtered_data
 
     def parse_distribution_params(self, output):
         params_start = re.search(r"Distribution\s+Location\s+Shape\s+Scale\s+Threshold", output).end()

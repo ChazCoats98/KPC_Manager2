@@ -1095,7 +1095,10 @@ class ManagementFormWind(QWidget):
     def loadPartData(self):
         formData = database.get_form_by_pn(self.partId)
         selectedPartData = database.get_part_by_id(self.partId)
+        print('form data')
         print(formData)
+        print('Part data')
+        print(selectedPartData)
         self.partNumber.setText(selectedPartData['partNumber'])
         self.revLetter.setText(selectedPartData['rev'])
         self.uploadDate.setText(selectedPartData['uploadDate'])
@@ -1108,6 +1111,8 @@ class ManagementFormWind(QWidget):
                         feature['formNumber'] = data['formNumber']
                         feature['uploadDate'] = data['uploadDate']
                         feature['dueDate'] = data['dueDate']
+                functions.addFeatureToFormTable(self, feature)
+            else:
                 functions.addFeatureToFormTable(self, feature)
             
     def handleItemClicked(self, item):

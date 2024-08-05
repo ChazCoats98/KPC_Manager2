@@ -18,7 +18,6 @@ def get_all_data():
 
 def get_part_by_id(part_id):
     data = parts.find_one({"partNumber": part_id})
-    print(data)
     return data
 
 def update_part_by_id(partId, new_part_data, callback=None):
