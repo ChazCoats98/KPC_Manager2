@@ -1058,16 +1058,16 @@ class ManagementFormWind(QWidget):
         # Submit button Button
         addFeatureButton = QPushButton('Add Management Form')
         addFeatureButton.clicked.connect(self.addForm)
-        layout.addWidget(addFeatureButton, 5, 1, 1, 3)
+        layout.addWidget(addFeatureButton, 5, 1, 1, 4)
         
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
-        layout.addWidget(cancelButton, 7, 0, 1, 5)
+        layout.addWidget(cancelButton, 7, 1, 1, 4)
         
         self.featureTable = QTableWidget()
-        self.featureTable.setColumnCount(10)
-        self.featureTable.setHorizontalHeaderLabels(["Select KPC", "Feature Number", "KPC Designation", "KPC Number", "Operation Number", "Tolerance", "CPK", "Management Form Number", "Management Form Upload Date", "Management Form Expiration Date"])
+        self.featureTable.setColumnCount(12)
+        self.featureTable.setHorizontalHeaderLabels(["Select KPC", "Feature Number", "KPC Designation", "KPC Number", "Operation Number", "Tolerance", "CPK", "Management Form Number", "Management Form Upload Date", "Milestone 2 Target Date", "Milestone 3 Target Date", "Milestone 4 Target Date"])
         self.featureTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.featureTable.columnCount()):
             self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
@@ -1108,9 +1108,21 @@ class ManagementFormWind(QWidget):
             if formData:
                 for data in formData:
                     if feature['kpcNum'] in data['kpcs']:
-                        feature['formNumber'] = data['formNumber']
-                        feature['uploadDate'] = data['uploadDate']
-                        feature['dueDate'] = data['dueDate']
+                        if data['ms2Date'] and data['ms3Date']:
+                            feature['formNumber'] = data['formNumber']
+                            feature['uploadDate'] = data['uploadDate']
+                            feature['ms2Date'] = data['ms2Date']
+                            feature['ms3Date'] = data['ms3Date']
+                            feature['ms4Date'] = data['ms4Date']
+                        elif data['ms3Date']:
+                            feature['formNumber'] = data['formNumber']
+                            feature['uploadDate'] = data['uploadDate']
+                            feature['ms3Date'] = data['ms3Date']
+                            feature['ms4Date'] = data['ms4Date']
+                        else:
+                            feature['formNumber'] = data['formNumber']
+                            feature['uploadDate'] = data['uploadDate']
+                            feature['ms4Date'] = data['ms4Date']
                 functions.addFeatureToFormTable(self, feature)
             else:
                 functions.addFeatureToFormTable(self, feature)
@@ -1150,11 +1162,17 @@ class ManagementFormAdd(QWidget):
         layout.addWidget(self.udBox, 0, 3)
         
         # upload date form
-        ddLabel = QLabel('Expiration Date:')
-        ddate = date.today() + timedelta(days=365)
-        self.ddBox = QDateEdit(ddate)
-        layout.addWidget(ddLabel, 0, 4)
-        layout.addWidget(self.ddBox, 0, 5)
+        ms3Label = QLabel('Milestone 3 Target Date:')
+        ms3Date = date.today() + timedelta(days=365)
+        self.ms3Box = QDateEdit(ms3Date)
+        layout.addWidget(ms3Label, 0, 4)
+        layout.addWidget(self.ms3Box, 0, 5)
+        
+        ms4Label = QLabel('Milestone 3 Target Date:')
+        ms4Date = date.today() + timedelta(days=365)
+        self.ms4Box = QDateEdit(ms4Date)
+        layout.addWidget(ms4Label, 0, 6)
+        layout.addWidget(self.ms4Box, 0, 7)
         
         self.featureTable = QTableWidget()
         self.featureTable.setColumnCount(2)
@@ -1164,19 +1182,17 @@ class ManagementFormAdd(QWidget):
             self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
         self.featureTable.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.addKpcToTable()
-        layout.addWidget(self.featureTable, 3, 0, 3, 3)
+        layout.addWidget(self.featureTable, 3, 0, 3, 4)
         
         # Notes form
-        notesLabel = QLabel('Proposed Process Change:')
         self.notesInput = QTextEdit()
         self.notesInput.setPlaceholderText('Enter Management form process change')
-        layout.addWidget(notesLabel, 3, 3)
-        layout.addWidget(self.notesInput, 3, 3, 3, 3)
+        layout.addWidget(self.notesInput, 3, 4, 3, 4)
         
         # Submit button Button
         addFeatureButton = QPushButton('Add Feature')
         addFeatureButton.clicked.connect(self.saveForm)
-        layout.addWidget(addFeatureButton, 7, 0, 1, 4)
+        layout.addWidget(addFeatureButton, 7, 0, 1, 8)
         
         self.setLayout(layout)
         
@@ -1206,7 +1222,8 @@ class ManagementFormAdd(QWidget):
             'partNumber': self.partId,
             'formNumber': formNum,
             'uploadDate': self.udBox.text(),
-            'dueDate': self.ddBox.text(),
+            'ms3Date': self.ms3Box.text(),
+            'ms4Date': self.ms4Box.text(),
             'formText': formLText,
             'kpcs': []
         }
