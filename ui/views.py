@@ -1161,18 +1161,28 @@ class ManagementFormAdd(QWidget):
         layout.addWidget(udLabel, 0, 2)
         layout.addWidget(self.udBox, 0, 3)
         
+        ms2Label = QLabel('Milestone 2 Target Date:')
+        ms2Date = date.today() + timedelta(days=365)
+        self.ms2Box = QDateEdit(ms2Date)
+        self.ms2Check = QCheckBox('Milestone 2 Complete', self)
+        layout.addWidget(ms2Label, 0, 4)
+        layout.addWidget(self.ms2Box, 0, 5)
+        layout.addWidget(self.ms2Check, 0, 6)
+        
         # upload date form
         ms3Label = QLabel('Milestone 3 Target Date:')
         ms3Date = date.today() + timedelta(days=365)
         self.ms3Box = QDateEdit(ms3Date)
-        layout.addWidget(ms3Label, 0, 4)
-        layout.addWidget(self.ms3Box, 0, 5)
+        self.ms3Check = QCheckBox('Milestone 3 Complete', self)
+        layout.addWidget(ms3Label, 0, 7)
+        layout.addWidget(self.ms3Box, 0, 8)
+        layout.addWidget(self.ms3Check, 0, 9)
         
-        ms4Label = QLabel('Milestone 3 Target Date:')
+        ms4Label = QLabel('Milestone 4 Target Date:')
         ms4Date = date.today() + timedelta(days=365)
         self.ms4Box = QDateEdit(ms4Date)
-        layout.addWidget(ms4Label, 0, 6)
-        layout.addWidget(self.ms4Box, 0, 7)
+        layout.addWidget(ms4Label, 0, 10)
+        layout.addWidget(self.ms4Box, 0, 11)
         
         self.featureTable = QTableWidget()
         self.featureTable.setColumnCount(2)
@@ -1218,16 +1228,40 @@ class ManagementFormAdd(QWidget):
             QMessageBox.warning(self, "Error", "Please enter process changes made.")
             return
         
-        formData = {
-            'partNumber': self.partId,
-            'formNumber': formNum,
-            'uploadDate': self.udBox.text(),
-            'ms3Date': self.ms3Box.text(),
-            'ms4Date': self.ms4Box.text(),
-            'formText': formLText,
-            'kpcs': []
-        }
-        
+        if self.ms2Check.isChecked() and self.ms3Check.isChecked():
+            formData = {
+                'partNumber': self.partId,
+                'formNumber': formNum,
+                'uploadDate': self.udBox.text(),
+                'ms2Date': None,
+                'ms3Date': None,
+                'ms4Date': self.ms4Box.text(),
+                'formText': formLText,
+                'kpcs': []
+            }
+        elif self.ms2Check.isChecked():
+            formData = {
+                'partNumber': self.partId,
+                'formNumber': formNum,
+                'uploadDate': self.udBox.text(),
+                'ms2Date': None,
+                'ms3Date': self.ms3Box.text(),
+                'ms4Date': self.ms4Box.text(),
+                'formText': formLText,
+                'kpcs': []
+            }
+        else:
+            formData = {
+                'partNumber': self.partId,
+                'formNumber': formNum,
+                'uploadDate': self.udBox.text(),
+                'ms2Date': self.ms2Box.text(),
+                'ms3Date': self.ms3Box.text(),
+                'ms4Date': self.ms4Box.text(),
+                'formText': formLText,
+                'kpcs': []
+            }
+            
         for kpc, tol in self.selectedKpcs:
             formData['kpcs'].append(kpc)
         
