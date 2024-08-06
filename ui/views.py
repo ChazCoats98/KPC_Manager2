@@ -1160,7 +1160,7 @@ class ManagementFormAdd(QWidget):
     formSubmitted = pyqtSignal()
     def __init__(self, parent, partId, selectedKpcs, mode='add'):
         super().__init__()
-        self.setWindowTitle("Add Management Form")
+        self.setWindowTitle("Management Form")
         self.resize(800, 600)
         
         self.mode = mode
@@ -1186,6 +1186,7 @@ class ManagementFormAdd(QWidget):
         ms2Date = date.today() + timedelta(days=365)
         self.ms2Box = QDateEdit(ms2Date)
         self.ms2Check = QCheckBox('Milestone 2 Complete', self)
+        self.ms2Check.stateChanged.connect(self.toggleMs2Date)
         layout.addWidget(ms2Label, 0, 4)
         layout.addWidget(self.ms2Box, 0, 5)
         layout.addWidget(self.ms2Check, 0, 6)
@@ -1195,6 +1196,7 @@ class ManagementFormAdd(QWidget):
         ms3Date = date.today() + timedelta(days=365)
         self.ms3Box = QDateEdit(ms3Date)
         self.ms3Check = QCheckBox('Milestone 3 Complete', self)
+        self.ms3Check.stateChanged.connect(self.toggleMs3Date)
         layout.addWidget(ms3Label, 0, 7)
         layout.addWidget(self.ms3Box, 0, 8)
         layout.addWidget(self.ms3Check, 0, 9)
@@ -1213,17 +1215,17 @@ class ManagementFormAdd(QWidget):
             self.featureTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
         self.featureTable.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.addKpcToTable()
-        layout.addWidget(self.featureTable, 3, 0, 3, 4)
+        layout.addWidget(self.featureTable, 3, 0, 3, 7)
         
         # Notes form
         self.notesInput = QTextEdit()
         self.notesInput.setPlaceholderText('Enter Management form process change')
-        layout.addWidget(self.notesInput, 3, 4, 3, 4)
+        layout.addWidget(self.notesInput, 3, 7, 3, 5)
         
         # Submit button Button
-        addFeatureButton = QPushButton('Add Feature')
-        addFeatureButton.clicked.connect(self.saveForm)
-        layout.addWidget(addFeatureButton, 7, 0, 1, 8)
+        self.addFeatureButton = QPushButton('Add Feature')
+        self.addFeatureButton.clicked.connect(self.saveForm)
+        layout.addWidget(self.addFeatureButton, 7, 0, 1, 12)
         
         self.setLayout(layout)
         
@@ -1233,18 +1235,38 @@ class ManagementFormAdd(QWidget):
             for i, (kpc, tol) in enumerate(self.selectedKpcs):
                 row_position = self.featureTable.rowCount()
                 self.featureTable.insertRow(row_position)
-                print(kpc)
-                print(tol)
                 self.featureTable.setItem(row_position, 0, QTableWidgetItem(str(kpc)))
                 self.featureTable.setItem(row_position, 1, QTableWidgetItem(str(tol)))
                 
     def loadForm(self, selectedKpcs):
+        print(selectedKpcs)
         formData = database.get_form_by_pn(self.partId)
         
         for data in formData:
-            if selectedKpcs in data['kpcs']:
-                self.formInput.setText(formData['formNumber'])
-                self.udBox.setTime(formData['uploadDate'])
+            for kpc, tol in selectedKpcs:
+                if kpc in data['kpcs']:
+                    uploadDate = datetime.strptime(data['uploadDate'], '%m/%d/%Y')
+                    ms4Date = datetime.strptime(data['ms4Date'], '%m/%d/%Y')
+                    self.formInput.setText(data['formNumber'])
+                    self.formInput.setReadOnly(True)
+                    self.udBox.setDate(QDate(uploadDate))
+                    self.udBox.setReadOnly(True)
+                    self.ms4Box.setDate(QDate(ms4Date))
+                    self.ms4Box.setReadOnly(True)
+                    self.notesInput.setText(data['formText'])
+                    self.notesInput.setReadOnly(True)
+                    self.addFeatureButton.hide()
+                    if data['ms2Date']:
+                        ms2Date = datetime.strptime(data['ms2Date'], '%m/%d/%Y')
+                        self.ms2Box.setDate(ms2Date)
+                    else:
+                        self.ms2Check.setChecked(True)
+                    if data['ms3Date']:
+                        ms3Date = datetime.strptime(data['ms3Date'], '%m/%d/%Y')
+                        self.ms3Box.setDate(ms3Date)
+                    else:
+                        self.ms3Check.setChecked(True)
+                    
                 
         
     def saveForm(self):
@@ -1297,6 +1319,19 @@ class ManagementFormAdd(QWidget):
         database.add_management_form(formData, callback=self.onSubmitSuccess)
         
         self.close()
+        
+    def toggleMs2Date(self, state):
+        if state == Qt.Checked:
+            self.ms2Box.setEnabled(False)
+            self.ms2Box.setDate(QDate())
+        else:
+            self.ms2Box.setEnabled(True)
+    def toggleMs3Date(self, state):
+        if state == Qt.Checked:
+            self.ms3Box.setEnabled(False)
+            self.ms3Box.setDate(QDate())
+        else:
+            self.ms3Box.setEnabled(True)
         
     def onSubmitSuccess(self, isSuccess):
         if isSuccess:
