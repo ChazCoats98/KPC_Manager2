@@ -407,25 +407,37 @@ class ppapPartForm(QWidget):
         layout.addWidget(revLabel, 0, 1)
         layout.addWidget(self.revInput, 1, 1)
         
-        # upload date form
-        phaseLabel = QLabel('PPAP Package Phase:')
-        self.phaseInput = QLineEdit()
-        self.phaseInput.setPlaceholderText('Enter PPAP Phase')
-        layout.addWidget(phaseLabel, 0, 2)
-        layout.addWidget(self.phaseInput, 1, 2)
-        
-        dueDateLabel = QLabel('PPAP Package Due Date:')
-        self.dueDateInput = QLineEdit()
-        self.dueDateInput.setPlaceholderText('Enter PPAP Due Date')
-        layout.addWidget(dueDateLabel, 0, 3)
-        layout.addWidget(self.dueDateInput, 1, 3)
-        
         # Notes form
         notesLabel = QLabel('PPAP Number:')
         self.notesInput = QLineEdit()
         self.notesInput.setPlaceholderText('Enter PPAP Number')
-        layout.addWidget(notesLabel, 0, 4)
-        layout.addWidget(self.notesInput, 1, 4)
+        layout.addWidget(notesLabel, 0, 2)
+        layout.addWidget(self.notesInput, 1, 2)
+        
+        # upload date form
+        phaseLabel = QLabel('PPAP Package Phase:')
+        self.phaseInput = QLineEdit()
+        self.phaseInput.setPlaceholderText('Enter PPAP Phase')
+        layout.addWidget(phaseLabel, 0, 3)
+        layout.addWidget(self.phaseInput, 1, 3)
+        dueDateLabel = QLabel('Interim B Commit:')
+        self.dueDateInput = QLineEdit()
+        self.dueDateInput.setPlaceholderText('Enter Interim B commit date')
+        layout.addWidget(dueDateLabel, 0, 4)
+        layout.addWidget(self.dueDateInput, 1, 4)
+        
+        dueDateLabel = QLabel('Interim A Commit:')
+        self.dueDateInput = QLineEdit()
+        self.dueDateInput.setPlaceholderText('Enter Interim A commit date')
+        layout.addWidget(dueDateLabel, 0, 5)
+        layout.addWidget(self.dueDateInput, 1, 5)
+        
+        dueDateLabel = QLabel('Full Approval:')
+        self.dueDateInput = QLineEdit()
+        self.dueDateInput.setPlaceholderText('Enter Full Approval commit date')
+        layout.addWidget(dueDateLabel, 0, 6)
+        layout.addWidget(self.dueDateInput, 1, 6)
+        
         
         self.elementsTable = QTableWidget()
         self.elementsTable.setColumnCount(5)
@@ -433,6 +445,7 @@ class ppapPartForm(QWidget):
         self.elementsTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.elementsTable.columnCount()):
             self.elementsTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+        self.elementsTable.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
             
         elements = [
             ('Element 1', 'Design Records'),
@@ -456,22 +469,22 @@ class ppapPartForm(QWidget):
             elRadio = RadioButtonTableWidget()
             self.elementsTable.setCellWidget(i, 2, elRadio)
             
-        layout.addWidget(self.elementsTable, 4, 0, 1, 5)
+        layout.addWidget(self.elementsTable, 4, 0, 1, 7)
         
         # Submit button Button
-        addFeatureButton = QPushButton('Add Feature')
+        addFeatureButton = QPushButton('Add PPAP Part')
         addFeatureButton.clicked.connect(self.addFeature)
-        layout.addWidget(addFeatureButton, 5, 1, 1, 3)
+        layout.addWidget(addFeatureButton, 5, 2, 1, 3)
         
         addPartButton = QPushButton('Save Part')
         addPartButton.setStyleSheet("background-color: #3ADC73")
         addPartButton.clicked.connect(lambda: functions.submitPPAPPart(self))
-        layout.addWidget(addPartButton, 6, 0, 1, 5)
+        layout.addWidget(addPartButton, 6, 1, 1, 5)
         
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
-        layout.addWidget(cancelButton, 7, 0, 1, 5)        
+        layout.addWidget(cancelButton, 7, 1, 1, 5)        
         
         self.setLayout(layout)
         
