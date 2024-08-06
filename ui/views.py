@@ -1060,6 +1060,11 @@ class ManagementFormWind(QWidget):
         addFeatureButton.clicked.connect(self.addForm)
         layout.addWidget(addFeatureButton, 5, 1, 1, 4)
         
+        viewFormButton = QPushButton('View Management Form for Selected KPC')
+        viewFormButton.clicked.connect(self.viewForm)
+        layout.addWidget(viewFormButton, 6, 1, 1, 4)
+        
+        
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
@@ -1092,6 +1097,21 @@ class ManagementFormWind(QWidget):
         self.addForm.formSubmitted.connect(self.loadPartData)
         self.addForm.show()
         
+    def viewForm(self):
+        self.selectedKpcs.clear()
+        
+        for row in range(self.featureTable.rowCount()):
+            checkbox = self.featureTable.cellWidget(row, 0)
+            if checkbox is not None and checkbox.isChecked():
+                kpc_number = self.featureTable.item(row, 3).text()
+                tolerance = self.featureTable.item(row, 5).text()
+                self.selectedKpcs.append((kpc_number, tolerance))
+                
+        self.addForm = ManagementFormAdd(self, self.partId, self.selectedKpcs)
+        self.addForm.formSubmitted.connect(self.loadPartData)
+        self.addForm.loadForm(self.selectedKpcs)
+        self.addForm.show()
+        
     def loadPartData(self):
         formData = database.get_form_by_pn(self.partId)
         selectedPartData = database.get_part_by_id(self.partId)
@@ -1108,6 +1128,7 @@ class ManagementFormWind(QWidget):
             if formData:
                 for data in formData:
                     if feature['kpcNum'] in data['kpcs']:
+                        print(data)
                         if data['ms2Date'] and data['ms3Date']:
                             feature['formNumber'] = data['formNumber']
                             feature['uploadDate'] = data['uploadDate']
@@ -1217,6 +1238,14 @@ class ManagementFormAdd(QWidget):
                 self.featureTable.setItem(row_position, 0, QTableWidgetItem(str(kpc)))
                 self.featureTable.setItem(row_position, 1, QTableWidgetItem(str(tol)))
                 
+    def loadForm(self, selectedKpcs):
+        formData = database.get_form_by_pn(self.partId)
+        
+        for data in formData:
+            if selectedKpcs in data['kpcs']:
+                self.formInput.setText(formData['formNumber'])
+                self.udBox.setTime(formData['uploadDate'])
+                
         
     def saveForm(self):
         formNum = self.formInput.text().strip()
@@ -1268,14 +1297,6 @@ class ManagementFormAdd(QWidget):
         database.add_management_form(formData, callback=self.onSubmitSuccess)
         
         self.close()
-        
-    def uploadCal(self):
-        self.uploadCalendar = QCalendarWidget(self)
-        self.uploadCalendar.show()
-        
-    def dueCal(self):
-        self.dueCalendar = QCalendarWidget(self)
-        self.dueCalendar.show()
         
     def onSubmitSuccess(self, isSuccess):
         if isSuccess:

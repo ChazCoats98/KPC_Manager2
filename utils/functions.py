@@ -187,7 +187,7 @@ def addFeatureToFormTable(self, feature_data):
         row_position = self.featureTable.rowCount()
         self.featureTable.insertRow(row_position)
         
-        keys = ['feature', 'designation', 'kpcNum', 'opNum', 'tol', 'cpk', 'formNumber', 'uploadDate', 'dueDate']
+        keys = ['feature', 'designation', 'kpcNum', 'opNum', 'tol', 'cpk', 'formNumber', 'uploadDate', 'ms2Date', 'ms3Date', 'ms4Date']
         for i, key in enumerate(keys):
             value = feature_data.get(key, '')
             checkbox = QCheckBox()
