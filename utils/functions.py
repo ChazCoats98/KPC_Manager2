@@ -173,6 +173,53 @@ def submitPart(self):
             
         self.close()
         
+#Adds new part or updates current selected part if in edit mode
+def submitPPAPPart(self):
+        upload_date_str = self.udInput.text().strip()
+        if not upload_date_str:
+            QMessageBox.warning(self, "Error", "Upload date cannot be empty.")
+            return
+        try: 
+            upload_date = datetime.strptime(upload_date_str, '%m/%d/%Y')
+        except ValueError:
+            QMessageBox.warning(self, "Error", "Upload date must be in MM/DD/YYYY Format.")
+            return
+            
+        due_date = upload_date + timedelta(days=90)
+        due_date_str = due_date.strftime('%m/%d/%Y')
+        new_part_data = {
+            "partNumber": self.partInput.text(),
+            "rev": self.revInput.text(),
+            "uploadDate": self.udInput.text(),
+            "dueDate": due_date_str,
+            "notes": self.notesInput.text(),
+            "currentManufacturing": self.manufacturingCheck.isChecked(),
+            "features": []
+        }
+        for row in range(self.featureTable.rowCount()):
+            feature = {
+                "feature": self.featureTable.item(row, 0).text(),
+                "designation": self.featureTable.item(row, 1).text(),
+                "kpcNum": self.featureTable.item(row, 2).text(),
+                "opNum": self.featureTable.item(row, 3).text(),
+                "tol": self.featureTable.item(row, 4).text(),
+                "engine": self.featureTable.item(row, 5).text(),
+            }
+            new_part_data["features"].append(feature)
+        def on_submit_success(is_success):
+            if is_success:
+                self.partSubmitted.emit()
+        if self.mode == "add":
+            if database.check_for_part(self.partInput.text()):
+                QMessageBox.warning(self, "Error", "Part already exists in database.")
+                return
+            else: 
+                database.submit_new_part(new_part_data, callback=on_submit_success)
+        elif self.mode == "edit":
+            database.update_part_by_id(self.partId, new_part_data, callback=on_submit_success)
+            
+        self.close()
+        
 #Loads part features to table for editing
 def addFeatureToTable(self, feature_data):
         row_position = self.featureTable.rowCount()

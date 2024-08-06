@@ -97,6 +97,7 @@ class DashboardView(QMainWindow):
         self.ppapTab.layout.addWidget(ppapToolbar)
         
         self.ppapTreeView = ppapTreeView(self)
+        self.ppap_data = database.get_all_ppap_data()
         self.ppapModel = PpapDataModel(self.part_data)
         self.ppapProxyModel = QSortFilterProxyModel(self)
         self.ppapProxyModel.setSourceModel(self.ppapModel)
@@ -433,13 +434,27 @@ class ppapPartForm(QWidget):
         for column in range(self.elementsTable.columnCount()):
             self.elementsTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
             
-        for i in range(12):
+        elements = [
+            ('Element 1', 'Design Records'),
+            ('Element 2', 'Design Risk Analysis (IDS)'),
+            ('Element 3', 'Process Flow Diagram'),
+            ('Element 4', 'Process Failure Mode and Effects Analysis (PFMEA)'),
+            ('Element 5', 'Control Plan'),
+            ('Element 6', 'Measurement Systems Analysis (MSA)'),
+            ('Element 7', 'Initial Process Capability Studies'),
+            ('Element 8', 'Packaging, Preservation, and Labeling Approvals'),
+            ('Element 9', 'First Article Inspection Report'),
+            ('Element 10.1', 'Part Marking Approval'),
+            ('Element 10.2', 'Production Process Run(s)'),
+            ('Element 11', 'PPAP Approval')
+        ]
+            
+        for i, (el, elName) in enumerate(elements):
             self.elementsTable.insertRow(i)
-        
-        self.elementsTable.setItem(0, 0, QTableWidgetItem('Element 1'))
-        self.elementsTable.setItem(0, 1, QTableWidgetItem('Design Records'))
-        el1Radio = RadioButtonTableWidget()
-        self.elementsTable.setCellWidget(0, 2, el1Radio)
+            self.elementsTable.setItem(i, 0, QTableWidgetItem(el))
+            self.elementsTable.setItem(i, 1, QTableWidgetItem(elName))
+            elRadio = RadioButtonTableWidget()
+            self.elementsTable.setCellWidget(i, 2, elRadio)
             
         layout.addWidget(self.elementsTable, 4, 0, 1, 5)
         
@@ -450,7 +465,7 @@ class ppapPartForm(QWidget):
         
         addPartButton = QPushButton('Save Part')
         addPartButton.setStyleSheet("background-color: #3ADC73")
-        addPartButton.clicked.connect(lambda: functions.submitPart(self))
+        addPartButton.clicked.connect(lambda: functions.submitPPAPPart(self))
         layout.addWidget(addPartButton, 6, 0, 1, 5)
         
         cancelButton = QPushButton('Cancel')
@@ -1099,7 +1114,16 @@ class ManagementFormWind(QWidget):
         
     def viewForm(self):
         self.selectedKpcs.clear()
+        formData = database.get_form_by_pn(self.partId)
         
+        all_kpcs = {}
+        for form in formData:
+            formNumber = form.get('formNumber')
+            for kpc in form['kpcs']:
+                all_kpcs[kpc] = formNumber
+                
+        selectedFormNumbers = set()
+            
         for row in range(self.featureTable.rowCount()):
             checkbox = self.featureTable.cellWidget(row, 0)
             if checkbox is not None and checkbox.isChecked():
@@ -1107,6 +1131,16 @@ class ManagementFormWind(QWidget):
                 tolerance = self.featureTable.item(row, 5).text()
                 self.selectedKpcs.append((kpc_number, tolerance))
                 
+                if kpc_number in all_kpcs:
+                    selectedFormNumbers.add(all_kpcs[kpc_number])
+                else:
+                    QMessageBox.warning(self, "Error", "No management form found for this KPC")
+                    return
+        
+            if len(selectedFormNumbers) > 1:
+                QMessageBox.warning(self, "Error", "Selected KPCs belong to different management forms.")
+                return
+                    
         self.addForm = ManagementFormAdd(self, self.partId, self.selectedKpcs)
         self.addForm.formSubmitted.connect(self.loadPartData)
         self.addForm.loadForm(self.selectedKpcs)
@@ -1223,7 +1257,7 @@ class ManagementFormAdd(QWidget):
         layout.addWidget(self.notesInput, 3, 7, 3, 5)
         
         # Submit button Button
-        self.addFeatureButton = QPushButton('Add Feature')
+        self.addFeatureButton = QPushButton('Add Form')
         self.addFeatureButton.clicked.connect(self.saveForm)
         layout.addWidget(self.addFeatureButton, 7, 0, 1, 12)
         
@@ -1241,10 +1275,20 @@ class ManagementFormAdd(QWidget):
     def loadForm(self, selectedKpcs):
         print(selectedKpcs)
         formData = database.get_form_by_pn(self.partId)
+        partData = database.get_part_by_id(self.partId)
+        
+        loaded_kpcs = set(kpc for kpc, _ in selectedKpcs)
         
         for data in formData:
             for kpc, tol in selectedKpcs:
                 if kpc in data['kpcs']:
+                    for feature in partData['features']:
+                        if feature['kpcNum'] not in loaded_kpcs and feature['kpcNum'] in data['kpcs']:
+                            row_position = self.featureTable.rowCount()
+                            self.featureTable.insertRow(row_position)
+                            self.featureTable.setItem(row_position, 0, QTableWidgetItem(str(feature['kpcNum'])))
+                            self.featureTable.setItem(row_position, 1, QTableWidgetItem(str(feature['tol'])))
+                            loaded_kpcs.add(feature['kpcNum'])
                     uploadDate = datetime.strptime(data['uploadDate'], '%m/%d/%Y')
                     ms4Date = datetime.strptime(data['ms4Date'], '%m/%d/%Y')
                     self.formInput.setText(data['formNumber'])
@@ -1266,7 +1310,7 @@ class ManagementFormAdd(QWidget):
                         self.ms3Box.setDate(ms3Date)
                     else:
                         self.ms3Check.setChecked(True)
-                    
+                
                 
         
     def saveForm(self):
