@@ -175,9 +175,14 @@ def submitPart(self):
         
 #Adds new part or updates current selected part if in edit mode
 def submitPPAPPart(self):
-        upload_date_str = self.udInput.text().strip()
-        if not upload_date_str:
-            QMessageBox.warning(self, "Error", "Upload date cannot be empty.")
+        partNum = self.partInput.text().strip()
+        revLetter = self.revInput.text().strip()
+        ppapNum = self.ppapInput.text().strip()
+        ppapPhase = self.phaseInput.text().strip()
+        
+        
+        if not partNum:
+            QMessageBox.warning(self, "Error", "Please enter a valid part number")
             return
         try: 
             upload_date = datetime.strptime(upload_date_str, '%m/%d/%Y')

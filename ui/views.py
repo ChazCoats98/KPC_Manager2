@@ -389,7 +389,7 @@ class ppapPartForm(QWidget):
         self.mode = mode
         self.partId = partId
         self.setWindowTitle("Add PPAP Part")
-        self.resize(800, 600)
+        self.resize(1000, 600)
         
         layout = QGridLayout()
         
@@ -408,11 +408,11 @@ class ppapPartForm(QWidget):
         layout.addWidget(self.revInput, 1, 1)
         
         # Notes form
-        notesLabel = QLabel('PPAP Number:')
-        self.notesInput = QLineEdit()
-        self.notesInput.setPlaceholderText('Enter PPAP Number')
-        layout.addWidget(notesLabel, 0, 2)
-        layout.addWidget(self.notesInput, 1, 2)
+        ppapNumLabel = QLabel('PPAP Number:')
+        self.ppapInput = QLineEdit()
+        self.ppapInput.setPlaceholderText('Enter PPAP Number')
+        layout.addWidget(ppapNumLabel, 0, 2)
+        layout.addWidget(self.ppapInput, 1, 2)
         
         # upload date form
         phaseLabel = QLabel('PPAP Package Phase:')
@@ -420,28 +420,37 @@ class ppapPartForm(QWidget):
         self.phaseInput.setPlaceholderText('Enter PPAP Phase')
         layout.addWidget(phaseLabel, 0, 3)
         layout.addWidget(self.phaseInput, 1, 3)
+        
         dueDateLabel = QLabel('Interim B Commit:')
-        self.dueDateInput = QLineEdit()
-        self.dueDateInput.setPlaceholderText('Enter Interim B commit date')
+        intBDate = date.today() + timedelta(days=365)
+        self.intBBox = QDateEdit(intBDate)
+        self.intBCheck = QCheckBox('Interim B Complete', self)
+        self.intBCheck.stateChanged.connect(self.toggleIntBDate)
         layout.addWidget(dueDateLabel, 0, 4)
-        layout.addWidget(self.dueDateInput, 1, 4)
+        layout.addWidget(self.intBBox, 1, 4)
+        layout.addWidget(self.intBCheck, 1, 5)
         
         dueDateLabel = QLabel('Interim A Commit:')
-        self.dueDateInput = QLineEdit()
-        self.dueDateInput.setPlaceholderText('Enter Interim A commit date')
-        layout.addWidget(dueDateLabel, 0, 5)
-        layout.addWidget(self.dueDateInput, 1, 5)
+        intADate = date.today() + timedelta(days=730)
+        self.intABox = QDateEdit(intADate)
+        self.intACheck = QCheckBox('Interim A Complete', self)
+        self.intACheck.stateChanged.connect(self.toggleIntADate)
+        layout.addWidget(dueDateLabel, 0, 6)
+        layout.addWidget(self.intABox, 1, 6)
+        layout.addWidget(self.intACheck, 1, 7)
         
         dueDateLabel = QLabel('Full Approval:')
-        self.dueDateInput = QLineEdit()
-        self.dueDateInput.setPlaceholderText('Enter Full Approval commit date')
-        layout.addWidget(dueDateLabel, 0, 6)
-        layout.addWidget(self.dueDateInput, 1, 6)
-        
+        fullDate = date.today() + timedelta(days=1095)
+        self.fullBox = QDateEdit(fullDate)
+        self.fullCheck = QCheckBox('Full Approval Complete', self)
+        self.fullCheck.stateChanged.connect(self.toggleFullDate)
+        layout.addWidget(dueDateLabel, 0, 8)
+        layout.addWidget(self.fullBox, 1, 8)
+        layout.addWidget(self.fullCheck, 1, 9)
         
         self.elementsTable = QTableWidget()
-        self.elementsTable.setColumnCount(5)
-        self.elementsTable.setHorizontalHeaderLabels(['Element', 'Document', 'Element Submitted?', 'Date Submitted', 'Approval Status'])
+        self.elementsTable.setColumnCount(8)
+        self.elementsTable.setHorizontalHeaderLabels(['Element', 'Document', 'Element Submitted?', 'Date Submitted', 'Approval Status', 'Interim B Commit', 'Interim A Commit', 'Full Approval Commit'])
         self.elementsTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.elementsTable.columnCount()):
             self.elementsTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
@@ -469,7 +478,7 @@ class ppapPartForm(QWidget):
             elRadio = RadioButtonTableWidget()
             self.elementsTable.setCellWidget(i, 2, elRadio)
             
-        layout.addWidget(self.elementsTable, 4, 0, 1, 7)
+        layout.addWidget(self.elementsTable, 4, 0, 1, 9)
         
         # Submit button Button
         addFeatureButton = QPushButton('Add PPAP Part')
@@ -487,6 +496,27 @@ class ppapPartForm(QWidget):
         layout.addWidget(cancelButton, 7, 1, 1, 5)        
         
         self.setLayout(layout)
+        
+    def toggleIntBDate(self, state):
+        if state == Qt.Checked:
+            self.intBBox.setEnabled(False)
+            self.intBBox.setDate(QDate())
+        else:
+            self.intBBox.setEnabled(True)
+            
+    def toggleIntADate(self, state):
+        if state == Qt.Checked:
+            self.intABox.setEnabled(False)
+            self.intABox.setDate(QDate())
+        else:
+            self.intABox.setEnabled(True)
+        
+    def toggleFullDate(self, state):
+        if state == Qt.Checked:
+            self.fullBox.setEnabled(False)
+            self.fullBox.setDate(QDate())
+        else:
+            self.fullBox.setEnabled(True)
         
     def addFeature(self):
             self.featureForm = FeatureForm(self)
