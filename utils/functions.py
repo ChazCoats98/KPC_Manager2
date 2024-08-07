@@ -179,51 +179,71 @@ def submitPPAPPart(self):
         revLetter = self.revInput.text().strip()
         ppapNum = self.ppapInput.text().strip()
         ppapPhase = self.phaseInput.text().strip()
+        if self.intBCheck.isChecked():
+            intBDate = None
+        else:
+            intBDate = self.intBBox.text()
+            
+        if self.intACheck.isChecked():
+            intADate = None
+        else:
+            intADate = self.intADBox.text()
+        if self.fullCheck.isChecked():
+            fullDate = None
+        else:
+            fullDate = self.fullBox.text()
         
         
         if not partNum:
             QMessageBox.warning(self, "Error", "Please enter a valid part number")
             return
-        try: 
-            upload_date = datetime.strptime(upload_date_str, '%m/%d/%Y')
-        except ValueError:
-            QMessageBox.warning(self, "Error", "Upload date must be in MM/DD/YYYY Format.")
+        elif not revLetter:
+            QMessageBox.warning(self, "Error", "Please enter a valid revision letter")
+            return
+        elif not ppapNum:
+            QMessageBox.warning(self, "Error", "Please enter a valid PPAP package number")
+            return
+        elif not ppapPhase:
+            QMessageBox.warning(self, "Error", "Please enter the current PPAP phase")
             return
             
-        due_date = upload_date + timedelta(days=90)
-        due_date_str = due_date.strftime('%m/%d/%Y')
-        new_part_data = {
-            "partNumber": self.partInput.text(),
-            "rev": self.revInput.text(),
-            "uploadDate": self.udInput.text(),
-            "dueDate": due_date_str,
-            "notes": self.notesInput.text(),
-            "currentManufacturing": self.manufacturingCheck.isChecked(),
-            "features": []
+        ppap_part_data = {
+            "partNumber": partNum,
+            "rev": revLetter,
+            "ppapNumber": ppapNum,
+            "ppapPhase": ppapPhase,
+            "intBDate": intBDate,
+            "intADate": intADate,
+            "fullDate": fullDate,
+            "elements": []
         }
-        for row in range(self.featureTable.rowCount()):
-            feature = {
-                "feature": self.featureTable.item(row, 0).text(),
-                "designation": self.featureTable.item(row, 1).text(),
-                "kpcNum": self.featureTable.item(row, 2).text(),
-                "opNum": self.featureTable.item(row, 3).text(),
-                "tol": self.featureTable.item(row, 4).text(),
-                "engine": self.featureTable.item(row, 5).text(),
+        for row in range(self.elementsTable.rowCount()):
+            element = {
+                "element": self.elementsTable.item(row, 0).text(),
+                "document": self.elementsTable.item(row, 1).text(),
+                "submitted": self.elementsTable.item(row, 2).text(),
+                "submitDate": self.elementsTable.item(row, 3).text(),
+                "status": self.elementsTable.item(row, 4).text(),
+                "interimB": self.elementsTable.item(row, 5).text(),
+                "interimA": self.elementsTable.item(row, 6).text(),
+                "full": self.elementsTable.item(row, 7).text(),
+                "notes": self.elementsTable.item(row, 8).text()
             }
-            new_part_data["features"].append(feature)
+            ppap_part_data["elements"].append(element)
+        print(ppap_part_data)
         def on_submit_success(is_success):
             if is_success:
                 self.partSubmitted.emit()
-        if self.mode == "add":
-            if database.check_for_part(self.partInput.text()):
-                QMessageBox.warning(self, "Error", "Part already exists in database.")
-                return
-            else: 
-                database.submit_new_part(new_part_data, callback=on_submit_success)
-        elif self.mode == "edit":
-            database.update_part_by_id(self.partId, new_part_data, callback=on_submit_success)
+        #if self.mode == "add":
+            #if database.check_for_part(self.partInput.text()):
+                #QMessageBox.warning(self, "Error", "Part already exists in database.")
+                #return
+            #else: 
+                #database.submit_new_part(new_part_data, callback=on_submit_success)
+        #elif self.mode == "edit":
+            #database.update_part_by_id(self.partId, new_part_data, callback=on_submit_success)
             
-        self.close()
+        #self.close()
         
 #Loads part features to table for editing
 def addFeatureToTable(self, feature_data):

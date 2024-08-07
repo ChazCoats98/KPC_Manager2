@@ -1,7 +1,8 @@
 
 import math
+import typing
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QRect, Qt, QTimer
+from PyQt5.QtCore import QRect, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QPainter, QPaintEvent
 from textwrap import wrap
 
@@ -18,6 +19,20 @@ class RadioButtonTableWidget(QWidget):
         self.layout.addWidget(self.noRadio)
         
         self.setLayout(self.layout)
+        
+    stateChanged: typing.ClassVar[pyqtSignal]
+        
+    def isChecked(self):
+        if self.yesRadio.isChecked():
+            return True
+        elif self.noRadio.isChecked():
+            return False
+        
+    def setChecked(self, val: bool):
+        if val:
+            self.yesRadio.setChecked(True)
+        else:
+            self.noRadio.setChecked(True)
         
 class SpinnerWidget(QWidget):
     def __init__(

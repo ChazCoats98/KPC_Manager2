@@ -476,6 +476,7 @@ class ppapPartForm(QWidget):
             self.elementsTable.setItem(i, 0, QTableWidgetItem(el))
             self.elementsTable.setItem(i, 1, QTableWidgetItem(elName))
             elRadio = RadioButtonTableWidget()
+            elRadio.stateChanged.connect(self.changeStatus)
             self.elementsTable.setCellWidget(i, 2, elRadio)
             
         layout.addWidget(self.elementsTable, 4, 0, 1, 10)
