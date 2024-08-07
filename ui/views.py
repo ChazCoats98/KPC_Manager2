@@ -449,8 +449,8 @@ class ppapPartForm(QWidget):
         layout.addWidget(self.fullCheck, 1, 9)
         
         self.elementsTable = QTableWidget()
-        self.elementsTable.setColumnCount(8)
-        self.elementsTable.setHorizontalHeaderLabels(['Element', 'Document', 'Element Submitted?', 'Date Submitted', 'Approval Status', 'Interim B Commit', 'Interim A Commit', 'Full Approval Commit'])
+        self.elementsTable.setColumnCount(9)
+        self.elementsTable.setHorizontalHeaderLabels(['Element', 'Document', 'Element Submitted?', 'Date Submitted', 'Approval Status', 'Interim B', 'Interim A', 'Full Approval', 'Notes'])
         self.elementsTable.horizontalHeader().setStretchLastSection(False)
         for column in range(self.elementsTable.columnCount()):
             self.elementsTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
@@ -478,44 +478,53 @@ class ppapPartForm(QWidget):
             elRadio = RadioButtonTableWidget()
             self.elementsTable.setCellWidget(i, 2, elRadio)
             
-        layout.addWidget(self.elementsTable, 4, 0, 1, 9)
+        layout.addWidget(self.elementsTable, 4, 0, 1, 10)
         
         # Submit button Button
         addFeatureButton = QPushButton('Add PPAP Part')
         addFeatureButton.clicked.connect(self.addFeature)
-        layout.addWidget(addFeatureButton, 5, 2, 1, 3)
+        layout.addWidget(addFeatureButton, 5, 3, 1, 5)
         
         addPartButton = QPushButton('Save Part')
         addPartButton.setStyleSheet("background-color: #3ADC73")
         addPartButton.clicked.connect(lambda: functions.submitPPAPPart(self))
-        layout.addWidget(addPartButton, 6, 1, 1, 5)
+        layout.addWidget(addPartButton, 6, 2, 1, 7)
         
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
-        layout.addWidget(cancelButton, 7, 1, 1, 5)        
+        layout.addWidget(cancelButton, 7, 2, 1, 7)        
         
         self.setLayout(layout)
         
     def toggleIntBDate(self, state):
         if state == Qt.Checked:
             self.intBBox.setEnabled(False)
-            self.intBBox.setDate(QDate())
         else:
             self.intBBox.setEnabled(True)
             
     def toggleIntADate(self, state):
         if state == Qt.Checked:
+            self.intBBox.setEnabled(False)
+            self.intBCheck.setChecked(True)
             self.intABox.setEnabled(False)
-            self.intABox.setDate(QDate())
         else:
+            self.intBBox.setEnabled(True)
+            self.intBCheck.setChecked(False)
             self.intABox.setEnabled(True)
         
     def toggleFullDate(self, state):
         if state == Qt.Checked:
+            self.intBBox.setEnabled(False)
+            self.intBCheck.setChecked(True)
+            self.intABox.setEnabled(False)
+            self.intACheck.setChecked(True)
             self.fullBox.setEnabled(False)
-            self.fullBox.setDate(QDate())
         else:
+            self.intBBox.setEnabled(True)
+            self.intBCheck.setChecked(False)
+            self.intABox.setEnabled(True)
+            self.intACheck.setChecked(False)
             self.fullBox.setEnabled(True)
         
     def addFeature(self):
@@ -1410,14 +1419,16 @@ class ManagementFormAdd(QWidget):
     def toggleMs2Date(self, state):
         if state == Qt.Checked:
             self.ms2Box.setEnabled(False)
-            self.ms2Box.setDate(QDate())
         else:
             self.ms2Box.setEnabled(True)
     def toggleMs3Date(self, state):
         if state == Qt.Checked:
+            self.ms2Box.setEnabled(False)
+            self.ms2Check.setChecked(True)
             self.ms3Box.setEnabled(False)
-            self.ms3Box.setDate(QDate())
         else:
+            self.ms2Box.setEnabled(True)
+            self.ms2Check.setChecked(False)
             self.ms3Box.setEnabled(True)
         
     def onSubmitSuccess(self, isSuccess):
