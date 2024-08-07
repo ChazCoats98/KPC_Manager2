@@ -498,6 +498,19 @@ class ppapPartForm(QWidget):
         
         self.setLayout(layout)
         
+    def changeStatus(self, state):
+        sender = self.sender()
+        
+        if not state:
+            for row in range(self.elementsTable.rowCount()):
+                widget = self.elementsTable.cellWidget(row, 2)
+                if widget == sender:
+                    item = QTableWidgetItem('N/A')
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    self.elementsTable.setItem(row, 3, item)
+                    break
+            
+        
     def toggleIntBDate(self, state):
         if state == Qt.Checked:
             self.intBBox.setEnabled(False)

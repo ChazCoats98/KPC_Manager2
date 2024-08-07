@@ -7,6 +7,7 @@ from PyQt5.QtGui import QColor, QPainter, QPaintEvent
 from textwrap import wrap
 
 class RadioButtonTableWidget(QWidget):
+    stateChanged = pyqtSignal(bool)
     def __init__(self, parent=None):
         super(RadioButtonTableWidget, self).__init__(parent)
         
@@ -15,13 +16,20 @@ class RadioButtonTableWidget(QWidget):
         self.yesRadio = QRadioButton('Yes')
         self.noRadio = QRadioButton('No')
         
+        self.yesRadio.toggled.connect(self.onRadioToggled)
+        self.noRadio.toggled.connect(self.onRadioToggled)
+        
         self.layout.addWidget(self.yesRadio)
         self.layout.addWidget(self.noRadio)
         
         self.setLayout(self.layout)
         
-    stateChanged: typing.ClassVar[pyqtSignal]
-        
+    def onRadioToggled(self):
+        if self.yesRadio.isChecked():
+            self.stateChanged.emit(True)
+        elif self.noRadio.isChecked():
+            self.stateChanged.emit(False)
+            
     def isChecked(self):
         if self.yesRadio.isChecked():
             return True
