@@ -181,29 +181,29 @@ def submitPPAPPart(self):
             element = {
                 "element": self.elementsTable.item(row, 0).text(),
                 "document": self.elementsTable.item(row, 1).text(),
-                "submitted": self.elementsTable.item(row, 2).isChecked(),
+                "submitted": self.elementsTable.cellWidget(row, 2).isChecked(),
                 "submitDate": self.elementsTable.item(row, 3).text(),
-                "status": self.elementsTable.item(row, 4).text(),
-                "interimB": self.elementsTable.item(row, 5).text(),
-                "interimA": self.elementsTable.item(row, 6).text(),
-                "full": self.elementsTable.item(row, 7).text(),
-                "notes": self.elementsTable.item(row, 8).text()
+                "status": self.elementsTable.item(row, 4).text() if self.elementsTable.item(row, 4) else 'Initial',
+                "interimB": self.elementsTable.item(row, 5).text() if self.elementsTable.item(row, 5) else 'In Process',
+                "interimA": self.elementsTable.item(row, 6).text() if self.elementsTable.item(row, 6) else 'In Process',
+                "full": self.elementsTable.item(row, 7).text() if self.elementsTable.item(row, 7) else 'In Process',
+                "notes": self.elementsTable.item(row, 8).text() if self.elementsTable.item(row, 8) else None
             }
             ppap_part_data["elements"].append(element)
         print(ppap_part_data)
         def on_submit_success(is_success):
             if is_success:
                 self.partSubmitted.emit()
-        #if self.mode == "add":
-            #if database.check_for_part(self.partInput.text()):
-                #QMessageBox.warning(self, "Error", "Part already exists in database.")
-                #return
-            #else: 
-                #database.submit_new_part(new_part_data, callback=on_submit_success)
-        #elif self.mode == "edit":
-            #database.update_part_by_id(self.partId, new_part_data, callback=on_submit_success)
+        if self.mode == "add":
+            if database.check_for_ppap(self.partInput.text()):
+                QMessageBox.warning(self, "Error", "Part already exists in database.")
+                return
+            else: 
+                database.submit_new_ppap_part(ppap_part_data, callback=on_submit_success)
+        elif self.mode == "edit":
+            database.update_part_by_id(self.partId, ppap_part_data, callback=on_submit_success)
             
-        #self.close()
+        self.close()
         
 #Loads part features to table for editing
 def addFeatureToTable(self, feature_data):

@@ -99,6 +99,27 @@ def submit_new_ppap_part(new_ppap_data, callback=None):
         print(e)
         if callback: 
             callback(False)
+            
+def check_for_ppap(part_number):
+    count = ppap.count_documents({"partNumber": part_number})
+    return count > 0
+
+def update_ppap_by_id(partId, new_part_data, callback=None):
+    try:
+        result = parts.update_one({"partNumber": partId}, {"$set": new_part_data})
+        if result.modified_count > 0:
+            print("Part updated successfully")
+            if callback: 
+                callback(True)
+            else: 
+                print("No changes made to part")
+                if callback:
+                    callback(False)
+    except Exception as e: 
+        print(e)
+        if callback:
+            callback(False)
+
     
 def add_measurement(upload_data):   
     try:
