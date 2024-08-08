@@ -193,7 +193,7 @@ def submitPPAPPart(self):
         print(ppap_part_data)
         def on_submit_success(is_success):
             if is_success:
-                self.partSubmitted.emit()
+                self.ppapSubmitted.emit()
         if self.mode == "add":
             if database.check_for_ppap(self.partInput.text()):
                 QMessageBox.warning(self, "Error", "Part already exists in database.")
@@ -201,7 +201,7 @@ def submitPPAPPart(self):
             else: 
                 database.submit_new_ppap_part(ppap_part_data, callback=on_submit_success)
         elif self.mode == "edit":
-            database.update_part_by_id(self.partId, ppap_part_data, callback=on_submit_success)
+            database.update_ppap_by_id(self.partId, ppap_part_data, callback=on_submit_success)
             
         self.close()
         

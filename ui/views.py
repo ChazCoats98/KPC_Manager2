@@ -136,7 +136,7 @@ class DashboardView(QMainWindow):
         
     def openPpapPartForm(self):
         self.partForm = ppapPartForm()
-        self.partForm.partSubmitted.connect(self.refreshTreeView)
+        self.partForm.ppapSubmitted.connect(self.refreshTreeView)
         self.partForm.show()
         
     def openGageRRForm(self):
@@ -383,7 +383,7 @@ class partForm(QWidget):
         self.close()
         
 class ppapPartForm(QWidget):
-    partSubmitted = pyqtSignal()
+    ppapSubmitted = pyqtSignal()
     def __init__(self, mode="add", partId=None):
         super().__init__()
         self.mode = mode
