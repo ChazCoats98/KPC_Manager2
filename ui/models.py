@@ -8,6 +8,7 @@ class PartFeaturesModel(QAbstractItemModel):
         super(PartFeaturesModel, self).__init__(parent)
         
         self.part_data = part_data if part_data is not None else []
+        print(self.part_data)
         
     def index(self, row, column, parent=QModelIndex()):
         if not self.hasIndex(row, column, parent):
@@ -121,20 +122,20 @@ class PpapDataModel(QAbstractItemModel):
             return self.createIndex(row, column, part)
         else: 
             part = parent.internalPointer()
-            feature = part['features'][row]
-            return self.createIndex(row, column, feature)
+            element = part['elements'][row]
+            return self.createIndex(row, column, element)
         
     def parent(self, index):
         if not index.isValid():
             return QModelIndex()
         
         child = index.internalPointer()
-        if  'features' in child:
+        if  'elements' in child:
             
             return QModelIndex()
         else:
             for part in self.ppapData:
-                if child in part.get('features', []):
+                if child in part.get('elements', []):
                     parent_row = self.ppapData.index(part)
                     return self.createIndex(parent_row, 0, part)
         return QModelIndex()
@@ -146,52 +147,56 @@ class PpapDataModel(QAbstractItemModel):
             return len(self.ppapData)
         else: 
             part = parent.internalPointer()
-            return len(part.get('features', []))
+            return len(part.get('elements', []))
         
     def columnCount(self, parent=QModelIndex()):
-        return 6
+        return 9
     
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid():
             return None
         item = index.internalPointer()
         if role == Qt.DisplayRole:
-            if 'feature' in item:
+            if 'element' in item:
                 if index.column() == 0:
-                    return f"Feature #: {item['feature']}"
+                    return item['element']
                 elif index.column() == 1:
-                    return f"KPC Designation: {item['designation']}"
+                    return item['document']
                 elif index.column() == 2:
-                    return f"KPC Number: {item['kpcNum']}"
+                    return f"Submitted?: {item['submitted']}"
                 elif index.column() == 3:
-                    return f"Tolerance Value: {item['tol']}"
+                    return f"Submit Date: {item['submitDate']}"
                 elif index.column() == 4:
-                    return f"Engine: {item['engine']}"
+                    return f"Status: {item['status']}"
                 elif index.column() == 5:
-                    return f"CPK: {item.get('cpk', 'N/A')}"
+                    return f"Interim B: {item['interimB']}"
+                elif index.column() == 6:
+                    return f"Interim A: {item['interimA']}"
+                elif index.column() == 7:
+                    return f"Full Approval: {item['full']}"
+                elif index.column() == 8:
+                    return f"Notes: {item['notes']}"
             else:
                 if index.column() == 0:
                     return item.get('partNumber', '')
                 elif index.column() == 1:
                     return item.get('rev', '')
                 elif index.column() == 2:
-                    date_string = item.get('uploadDate')
-                    if date_string:
-                        formatted_date = functions.format_date(date_string)
-                    return formatted_date
+                    return item.get('ppapNumber')
                 elif index.column() == 3:
-                    return item.get('dueDate', '')
+                    return item.get('ppapPhase', '')
                 elif index.column() == 4:
-                    return item.get('notes', '')
-            pass
-        elif role == Qt.BackgroundRole:
-            if 'currentManufacturing' in item and item['currentManufacturing']:
-                return QtGui.QBrush(QtGui.QColor('red'))     
+                    return item.get('intBDate', '')
+                elif index.column() == 5:
+                    return item.get('intADate', '')
+                elif index.column() == 6:
+                    return item.get('fullDate', '')
+            pass    
         return None
     
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-            headers = ['Part Number', 'Revision', 'Approval Phase', 'Package Due Date', 'notes']
+            headers = ['Part Number', 'Revision', 'PPAP Number', 'PPAP Phase', 'Interim B Date', 'Interim A Date', 'Full Approval Date']
             if section < len(headers):
                 return headers[section]
         return None

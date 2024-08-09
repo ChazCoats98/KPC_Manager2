@@ -81,7 +81,7 @@ def save_cpk_values(partId, cpk_values):
     
 def get_all_ppap_data():
     data = ppap.find()
-    return data
+    return list(data)
     
 def submit_new_ppap_part(new_ppap_data, callback=None):
     try: 

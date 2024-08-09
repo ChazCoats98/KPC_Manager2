@@ -27,7 +27,7 @@ class DashboardView(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("KPC Manager")
-        self.resize(1200, 800)
+        self.resize(1400, 800)
         
         self.mainWidget = QWidget(self)
         self.mainLayout = QVBoxLayout()
@@ -98,7 +98,7 @@ class DashboardView(QMainWindow):
         
         self.ppapTreeView = ppapTreeView(self)
         self.ppap_data = database.get_all_ppap_data()
-        self.ppapModel = PpapDataModel(self.part_data)
+        self.ppapModel = PpapDataModel(self.ppap_data)
         self.ppapProxyModel = QSortFilterProxyModel(self)
         self.ppapProxyModel.setSourceModel(self.ppapModel)
         self.ppapTreeView.setModel(self.ppapProxyModel)
@@ -136,7 +136,7 @@ class DashboardView(QMainWindow):
         
     def openPpapPartForm(self):
         self.partForm = ppapPartForm()
-        self.partForm.ppapSubmitted.connect(self.refreshTreeView)
+        self.partForm.ppapSubmitted.connect(self.refreshPpapView)
         self.partForm.show()
         
     def openGageRRForm(self):
@@ -210,7 +210,6 @@ class DashboardView(QMainWindow):
         
         selectedPartData = database.get_part_by_id(part_id)
         selectedPartUploadData = database.get_measurements_by_id(part_id)
-        print(selectedPartUploadData)
         if not selectedPartData or selectedPartUploadData is None:
             QMessageBox.warning(self, "Error", "Could not find part data.")
             return
@@ -262,6 +261,11 @@ class DashboardView(QMainWindow):
         updated_parts_data = database.get_all_data()
         
         self.kpcModel.updateData(updated_parts_data)
+        
+    def refreshPpapView(self):
+        updated_ppap_data = database.get_all_ppap_data()
+        
+        self.ppapModel.updateData(updated_ppap_data)
         
 #Tree View for parts
 class PartTreeView(QTreeView):
@@ -481,20 +485,15 @@ class ppapPartForm(QWidget):
             
         layout.addWidget(self.elementsTable, 4, 0, 1, 10)
         
-        # Submit button Button
-        addFeatureButton = QPushButton('Add PPAP Part')
-        addFeatureButton.clicked.connect(self.addFeature)
-        layout.addWidget(addFeatureButton, 5, 3, 1, 5)
-        
         addPartButton = QPushButton('Save Part')
         addPartButton.setStyleSheet("background-color: #3ADC73")
         addPartButton.clicked.connect(lambda: functions.submitPPAPPart(self))
-        layout.addWidget(addPartButton, 6, 2, 1, 7)
+        layout.addWidget(addPartButton, 5, 2, 1, 7)
         
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.closeWindow)
-        layout.addWidget(cancelButton, 7, 2, 1, 7)        
+        layout.addWidget(cancelButton, 6, 2, 1, 7)        
         
         self.setLayout(layout)
         
