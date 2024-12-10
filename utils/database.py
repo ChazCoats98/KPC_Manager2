@@ -22,7 +22,17 @@ def get_part_by_id(part_id):
 
 def update_part_by_id(partId, new_part_data, callback=None):
     try:
-        result = parts.update_one({"partNumber": partId}, {"$set": new_part_data})
+        existing_part_data = parts.find_one({"partNumber": partId})
+        
+        if not existing_part_data:
+            print(f"Part # {partId} not found.")
+            return
+        
+        changed_data = {
+            key: value for key, value in new_part_data.items() 
+            if existing_part_data[key] != value 
+        }
+        result = parts.update_one({"partNumber": partId}, {"$set": changed_data})
         if result.modified_count > 0:
             print("Part updated successfully")
             if callback: 

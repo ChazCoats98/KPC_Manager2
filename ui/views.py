@@ -1039,8 +1039,8 @@ class FeatureForm(QWidget):
             "tol": self.requirementInput.text(),
             "engine": self.engineInput.text(),
         }
-        if self.parent:
-            self.parent.addFeatureToTable(feature_data)
+        if feature_data:
+            functions.addFeatureToTable(self.parent, feature_data)
             
         self.close()
         

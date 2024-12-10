@@ -76,7 +76,7 @@ class PartFeaturesModel(QAbstractItemModel):
                     date_string = item.get('uploadDate')
                     if date_string:
                         formatted_date = functions.format_date(date_string)
-                    return formatted_date
+                        return formatted_date
                 elif index.column() == 3:
                     return item.get('dueDate', '')
                 elif index.column() == 4:

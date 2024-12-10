@@ -506,11 +506,13 @@ def submitData(self):
                 updated_part_data = {
                         "uploadDate": upload_date_str,
                         "dueDate": due_date_str,
+                        "features" : []
                     }
             
                 for row in range(feature_table.rowCount()):
                     feature_number = feature_table.item(row, 0).text()
-                    kpcNum = feature_table.item(row, 1).text()
+                    kpc_number= feature_table.item(row, 1).text()
+                    op_number = feature_table.item(row, 3).text()
                     measurement = feature_table.item(row, 4).text()
             
                     if part_number:
@@ -530,8 +532,12 @@ def submitData(self):
                     target_row += 1
             
                     upload_data["measurements"].append({
-                        "kpcNum": kpcNum,
+                        "kpcNum": kpc_number,
                         "measurement": measurement
+                    })
+                    
+                    updated_part_data["features"].append({
+                        "opNum": op_number if op_number else ""
                     })
             
             workbook.save(filename=new_file_path)
@@ -637,7 +643,7 @@ class Worker(QObject):
         partId = self.partId
         part_data = database.get_part_by_id(partId)
         if part_data:
-            tolerances = {feature['kpcNum']: self.parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', [])}
+            tolerances = {feature['kpcNum']: self.parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', []) if feature['kpcNum']}
     
         measurement_data = database.get_measurements_by_id(partId)
         
