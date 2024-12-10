@@ -8,7 +8,6 @@ class PartFeaturesModel(QAbstractItemModel):
         super(PartFeaturesModel, self).__init__(parent)
         
         self.part_data = part_data if part_data is not None else []
-        print(self.part_data)
         
     def index(self, row, column, parent=QModelIndex()):
         if not self.hasIndex(row, column, parent):

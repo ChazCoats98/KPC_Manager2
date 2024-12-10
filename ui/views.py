@@ -183,7 +183,6 @@ class DashboardView(QMainWindow):
         
         selectedPartData = database.get_part_by_id(part_id)
         selectedPartUploadData = database.get_measurements_by_id(part_id)
-        print(selectedPartUploadData)
         if not selectedPartData or selectedPartUploadData is None:
             QMessageBox.warning(self, "Error", "Could not find part data.")
             return

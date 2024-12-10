@@ -13,7 +13,6 @@ measurements = kpcdb['measurements']
 
 def get_all_data():
     data = parts.find()
-    print(data)
     return list(data)
 
 def get_part_by_id(part_id):
@@ -28,19 +27,18 @@ def update_part_by_id(partId, new_part_data, callback=None):
             print(f"Part # {partId} not found.")
             return
         
-        changed_data = {
-            key: value for key, value in new_part_data.items() 
-            if existing_part_data[key] != value 
-        }
-        result = parts.update_one({"partNumber": partId}, {"$set": changed_data})
-        if result.modified_count > 0:
-            print("Part updated successfully")
-            if callback: 
-                callback(True)
-            else: 
-                print("No changes made to part")
-                if callback:
-                    callback(False)
+        for part in new_part_data.items():
+            for kpc in part['features']:
+                print(kpc)
+        #result = parts.update_one({"partNumber": partId}, {"$set": changed_data})
+        #if result.modified_count > 0:
+            #print("Part updated successfully")
+            #if callback: 
+            #    callback(True)
+            #else: 
+            #    print("No changes made to part")
+            #    if callback:
+            #        callback(False)
     except Exception as e: 
         print(e)
         if callback:

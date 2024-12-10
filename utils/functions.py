@@ -262,14 +262,12 @@ def addKPCToTable(self):
                 
 def setMinHeaderWidth(self):
     total_width = self.kpcTable.width()
-    print(total_width)
     
     for column in range(self.kpcTable.columnCount()):
         self.kpcTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeToContents)
     
     content_width = sum(self.kpcTable.columnWidth(column) for column in range(self.kpcTable.columnCount()))
     extra_width = total_width - content_width
-    print(content_width)
     
     if extra_width > 0:
         for column in range(self.kpcTable.columnCount()):
@@ -650,7 +648,6 @@ class Worker(QObject):
         measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
         
         if measurement_data:
-            print(measurement_data)
             for entry in measurement_data:
                 for measurement in entry.get('measurements', []):
                     kpcNum = measurement.get('kpcNum')
@@ -659,13 +656,10 @@ class Worker(QObject):
                             measurements_by_kpc[kpcNum].append(float(measurement['measurement']))
 
         for kpc, measurements in measurements_by_kpc.items():
-            print(measurements)
             if len(measurements) <= 3:
                 self.init_dialog.emit(self.parent, 'Too Few Data Points', 'Not enough data points. Skipping CPK calculation')
                 return
         
-        normrj_results = self.test_normalRJ(measurements_by_kpc, tolerances)
-        print(normrj_results)
         
         dist_data, percentiles = self.calculate_dist(measurements_by_kpc, tolerances)
         cpk_values = {}
