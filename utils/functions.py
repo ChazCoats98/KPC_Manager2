@@ -662,35 +662,38 @@ class Worker(QObject):
         
         
         dist_data, percentiles = self.calculate_dist(measurements_by_kpc, tolerances)
-        cpk_values = {}
-        print('calculating cpk')
-        for kpc, data in dist_data.items():
-            if data['dist'] == 'Normal':
-                usl, lsl = tolerances[kpc]
-                if usl is not None and lsl is not None:
-                    if usl < lsl:
-                        usl, lsl = lsl, usl
-                measurement = measurements_by_kpc[kpc]
-                sigma = np.std(measurement, ddof=1)
-                mean = np.mean(measurement)
+        if dist_data:
+            cpk_values = {}
+            print('calculating cpk')
+            for kpc, data in dist_data.items():
+                if data['dist'] == 'Normal':
+                    usl, lsl = tolerances[kpc]
+                    if usl is not None and lsl is not None:
+                        if usl < lsl:
+                            usl, lsl = lsl, usl
+                    measurement = measurements_by_kpc[kpc]
+                    sigma = np.std(measurement, ddof=1)
+                    mean = np.mean(measurement)
                 
-                cpu = (usl - mean) / (3 * sigma)
-                cpl = (mean - lsl) / (3 * sigma)
+                    cpu = (usl - mean) / (3 * sigma)
+                    cpl = (mean - lsl) / (3 * sigma)
                 
-                cpk = min(cpl, cpu)
-                print(f'cpk: {cpk}')
-                cpk_values[kpc] = cpk
-            else: 
-                calc_type, ppk = self.calculate_ppk(percentiles[kpc], tolerances[kpc])
-                print(f'ppk: {ppk}')
-                cpk_values[kpc] =  ppk
+                    cpk = min(cpl, cpu)
+                    print(f'cpk: {cpk}')
+                    cpk_values[kpc] = cpk
+                else: 
+                    calc_type, ppk = self.calculate_ppk(percentiles[kpc], tolerances[kpc])
+                    print(f'ppk: {ppk}')
+                    cpk_values[kpc] =  ppk
         
-            print(cpk_values)
-        print("Worker: Calculation finished")
-        if cpk_values:
-            formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
-            database.save_cpk_values(partId, formatted_cpk_values)
-            self.parent.dataSubmitted.emit()
+                print(cpk_values)
+            print("Worker: Calculation finished")
+            if cpk_values:
+                formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
+                database.save_cpk_values(partId, formatted_cpk_values)
+                self.parent.dataSubmitted.emit()
+        else:
+            return
     
     def test_normalRJ(self, measurements, tolerances):
         normality_results = {}
@@ -705,70 +708,74 @@ class Worker(QObject):
         return normality_results
 
     def calculate_dist(self, measurements, tolerances):
-        mtb = win32com.client.Dispatch("Mtb.Application.1")
-        mtb.UserInterface.Visible = True
-        project = mtb.ActiveProject
-        worksheet = project.ActiveWorksheet
-        columns = worksheet.Columns
+        try:
+            mtb = win32com.client.Dispatch("Mtb.Application.1")
+            mtb.UserInterface.Visible = True
+            project = mtb.ActiveProject
+            worksheet = project.ActiveWorksheet
+            columns = worksheet.Columns
     
-        dist_data = {}
-        p_res = {}
-        d = 1
-        for i, (kpc, data) in enumerate(measurements.items()):
-            usl, lsl = tolerances[kpc]
-            if usl is not None and lsl is not None:
-                if usl < lsl:
-                    usl, lsl = lsl, usl
+            dist_data = {}
+            p_res = {}
+            d = 1
+            for i, (kpc, data) in enumerate(measurements.items()):
+                usl, lsl = tolerances[kpc]
+                if usl is not None and lsl is not None:
+                    if usl < lsl:
+                        usl, lsl = lsl, usl
                 
-                column = columns.Add(None, None, 1)
-                column.SetData(data)
+                    column = columns.Add(None, None, 1)
+                    column.SetData(data)
             
-                command = f"DCapa C{d} 1; All; BoxCox; Johnson 0.10; RDescriptive; RFitTests; REstimate."
-                project.ExecuteCommand(command)
+                    command = f"DCapa C{d} 1; All; BoxCox; Johnson 0.10; RDescriptive; RFitTests; REstimate."
+                    project.ExecuteCommand(command)
     
-                time.sleep(2)
+                    time.sleep(2)
 
-                commands = project.Commands
-                lastCommand = commands.Item(commands.Count)
-                outputs = lastCommand.Outputs
+                    commands = project.Commands
+                    lastCommand = commands.Item(commands.Count)
+                    outputs = lastCommand.Outputs
 
-                results = []
+                    results = []
 
-                for i in range(1, outputs.Count +1):
-                    output = outputs.Item(i)
-                    results.append(output.Text)
+                    for i in range(1, outputs.Count +1):
+                        output = outputs.Item(i)
+                        results.append(output.Text)
     
-                formattedResults = "\n".join(results)
+                    formattedResults = "\n".join(results)
             
-                parsed_gof = self.parse_goodness_of_fit(formattedResults)
-                parsed_params = self.parse_distribution_params(formattedResults)
+                    parsed_gof = self.parse_goodness_of_fit(formattedResults)
+                    parsed_params = self.parse_distribution_params(formattedResults)
             
-                best_fit = self.determine_best_fit(parsed_gof)
-                best_fit_params = parsed_params[best_fit]
+                    best_fit = self.determine_best_fit(parsed_gof)
+                    best_fit_params = parsed_params[best_fit]
             
-                percentiles = [.00135, .5, .99865]
-                perc_dict = {}
-                for percentile in percentiles:
-                    p_column = columns.Add(None, d, 1)
-                    p_column.SetData(percentile)
-                    percent = self.get_perc_format(d, best_fit, best_fit_params)
-                    project.ExecuteCommand(percent)
-                    o_column = columns.Item(d+2).GetData(1)
-                    perc_dict[f'{(percentile * 100):.3f}th Percentile'] = o_column
-                    d = d + 2
-                p_res[kpc] = perc_dict
-                d = d + 1
+                    percentiles = [.00135, .5, .99865]
+                    perc_dict = {}
+                    for percentile in percentiles:
+                        p_column = columns.Add(None, d, 1)
+                        p_column.SetData(percentile)
+                        percent = self.get_perc_format(d, best_fit, best_fit_params)
+                        project.ExecuteCommand(percent)
+                        o_column = columns.Item(d+2).GetData(1)
+                        perc_dict[f'{(percentile * 100):.3f}th Percentile'] = o_column
+                        d = d + 2
+                    p_res[kpc] = perc_dict
+                    d = d + 1
     
-                dist_data[kpc] = {
-                    'dist': best_fit,
-                    'params': best_fit_params
-                }
-        print(p_res)
-        temp_file = os.path.join(tempfile.gettempdir(), 'temp_project.mpjx')
-        project.SaveAs(temp_file)
+                    dist_data[kpc] = {
+                        'dist': best_fit,
+                        'params': best_fit_params
+                    }
+            print(p_res)
+            temp_file = os.path.join(tempfile.gettempdir(), 'temp_project.mpjx')
+            project.SaveAs(temp_file)
 
-        mtb.Quit()
-        return dist_data, p_res
+            mtb.Quit()
+            return dist_data, p_res
+        except Exception as e:
+            print(f"Error occurred during distribution calculation: {str(e)}")
+            return None, None
 
     def parse_goodness_of_fit(self, output):
         print(output)
