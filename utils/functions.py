@@ -774,7 +774,7 @@ class Worker(QObject):
             mtb.Quit()
             return dist_data, p_res
         except Exception as e:
-            print(f"Error occurred during distribution calculation: {str(e)}")
+            self.init_dialog.emit(self.parent, 'Error', f'Error trying to connect to Minitab. {e}')
             return None, None
 
     def parse_goodness_of_fit(self, output):
