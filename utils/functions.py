@@ -1024,3 +1024,35 @@ def info_dialog_init(parent, error, detail_text):
     dlg.setText(detail_text)
     dlg.setIcon(QMessageBox.Information)
     dlg.exec()
+    
+#_____________________________#
+##Database helper functions##
+#_____________________________#
+def compare_features(existing_features, new_features): 
+    """
+    Compares existing features with new features and returns the updated list.
+    Only the changes will be retained in the new feature list.
+
+    Args:
+        existing_features (dict): dictionary of existing features to compare
+        new_features (dict): dictionary of new features 
+    """
+    updated_features = []
+    
+    for i, new_feature in enumerate(new_features):
+        print(f"new feature: {new_feature}")
+        if i < len(existing_features):
+            updated_feature = {}
+            for key, new_value in new_feature.items():
+                if new_value and new_value != existing_features[i].get(key):
+                    updated_feature[key] = new_value
+            
+            if updated_feature:
+                updated_features.append({**existing_features[i], **updated_feature})
+            else:
+                updated_features.append(existing_features[i])
+                
+        else:
+            updated_features.append(new_feature)
+            
+    return updated_features

@@ -1,7 +1,7 @@
 import json
 from pymongo import MongoClient
 from datetime import datetime, timedelta
-from PyQt5.QtWidgets import QMessageBox
+from utils import functions
 
 
 client: MongoClient = MongoClient()
@@ -24,21 +24,24 @@ def update_part_by_id(partId, new_part_data, callback=None):
         existing_part_data = parts.find_one({"partNumber": partId})
         
         if not existing_part_data:
-            print(f"Part # {partId} not found.")
-            return
+            print(f"{partId} not found")
         
-        for part in new_part_data.items():
-            for kpc in part['features']:
-                print(kpc)
-        #result = parts.update_one({"partNumber": partId}, {"$set": changed_data})
-        #if result.modified_count > 0:
-            #print("Part updated successfully")
-            #if callback: 
-            #    callback(True)
-            #else: 
-            #    print("No changes made to part")
-            #    if callback:
-            #        callback(False)
+        if "features" in new_part_data:
+            updated_features = functions.compare_features(existing_part_data.get("features", []), new_part_data.get("features", []))
+            new_part_data["features"] = updated_features              
+                
+        print("Updated data:")
+        print("______________________________")
+        print(new_part_data)
+        result = parts.update_one({"partNumber": partId}, {"$set": new_part_data})
+        if result.modified_count > 0:
+            print("Part updated successfully")
+            if callback: 
+                callback(True)
+            else: 
+                print("No changes made to part")
+                if callback:
+                    callback(False)
     except Exception as e: 
         print(e)
         if callback:
