@@ -1,35 +1,33 @@
-from pymongo import MongoClient
-import pandas as pd
+from utils import database, functions
+from datetime import datetime
 
-client: MongoClient = MongoClient()
-kpcdb = client['KPCManager']
-parts = kpcdb['parts']
-users = kpcdb['users']
-measurements = kpcdb['measurements']
+def update_measurements():
+    measurements = [
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7272', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3953'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4394'}, {'kpcNum': '57999', 'measurement': '.1247'}, {'kpcNum': '58000', 'measurement': '.2288'}, {'kpcNum': '58001', 'measurement': '.1298'}, {'kpcNum': '58004', 'measurement': '.0007'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7275', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3952'}, {'kpcNum': '58002', 'measurement': '5.6685'}, {'kpcNum': '58003', 'measurement': '.4393'}, {'kpcNum': '57999', 'measurement': '.1248'}, {'kpcNum': '58000', 'measurement': '.2291'}, {'kpcNum': '58001', 'measurement': '.1295'}, {'kpcNum': '58004', 'measurement': '.0011'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7256', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3952'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4393'}, {'kpcNum': '57999', 'measurement': '.1248'}, {'kpcNum': '58000', 'measurement': '.2295'}, {'kpcNum': '58001', 'measurement': '.1296'}, {'kpcNum': '58004', 'measurement': '.0001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7262', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3953'}, {'kpcNum': '58002', 'measurement': '5.6686'}, {'kpcNum': '58003', 'measurement': '.4395'}, {'kpcNum': '57999', 'measurement': '.1239'}, {'kpcNum': '58000', 'measurement': '.2297'}, {'kpcNum': '58001', 'measurement': '.1307'}, {'kpcNum': '58004', 'measurement': '.0009'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7253', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3950'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4395'}, {'kpcNum': '57999', 'measurement': '.1247'}, {'kpcNum': '58000', 'measurement': '.2296'}, {'kpcNum':'58001', 'measurement': '.1292'}, {'kpcNum': '58004', 'measurement': '.0001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7260', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3952'}, {'kpcNum': '58002', 'measurement': '5.6683'}, {'kpcNum': '58003', 'measurement': '.4395'}, {'kpcNum': '57999', 'measurement': '.1242'}, {'kpcNum': '58000', 'measurement': '.2292'}, {'kpcNum': '58001', 'measurement': '.1294'}, {'kpcNum': '58004', 'measurement': '.0001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7232', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3952'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4393'}, {'kpcNum': '57999', 'measurement': '.1245'}, {'kpcNum': '58000', 'measurement': '.2296'}, {'kpcNum': '58001', 'measurement': '.1305'}, {'kpcNum': '58004', 'measurement': '.0002'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7255', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3953'}, {'kpcNum': '58002', 'measurement': '5.6683'}, {'kpcNum': '58003', 'measurement': '.4391'}, {'kpcNum': '57999', 'measurement': '.1246'}, {'kpcNum': '58000', 'measurement': '.2294'}, {'kpcNum': '58001', 'measurement': '.1303'}, {'kpcNum': '58004', 'measurement': '.0013'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7254', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3955'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4396'}, {'kpcNum': '57999', 'measurement': '.1247'}, {'kpcNum': '58000', 'measurement': '.2296'}, {'kpcNum': '58001', 'measurement': '.1296'}, {'kpcNum': '58004', 'measurement': '.0001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7250', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3949'}, {'kpcNum': '58002', 'measurement': '5.6683'}, {'kpcNum': '58003', 'measurement': '.4392'}, {'kpcNum': '57999', 'measurement': '.1246'}, {'kpcNum': '58000', 'measurement': '.2298'}, {'kpcNum': '58001', 'measurement': '.1298'}, {'kpcNum': '58004', 'measurement': '.0001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7233', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3953'}, {'kpcNum': '58002', 'measurement': '5.6685'}, {'kpcNum': '58003', 'measurement': '.4394'}, {'kpcNum': '57999', 'measurement': '.1246'}, {'kpcNum': '58000', 'measurement': '.2296'}, {'kpcNum': '58001', 'measurement': '.1301'}, {'kpcNum': '58004', 'measurement': '.001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7247', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3951'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4395'}, {'kpcNum': '57999', 'measurement': '.1245'}, {'kpcNum': '58000', 'measurement': '.2293'}, {'kpcNum': '58001', 'measurement': '.1298'}, {'kpcNum': '58004', 'measurement': '.0001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7245', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3954'}, {'kpcNum': '58002', 'measurement': '5.6683'}, {'kpcNum': '58003', 'measurement': '.4394'}, {'kpcNum': '57999', 'measurement': '.1243'}, {'kpcNum': '58000', 'measurement': '.2293'}, {'kpcNum': '58001', 'measurement': '.1298'}, {'kpcNum': '58004', 'measurement': '.001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7265', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3951'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4393'}, {'kpcNum': '57999', 'measurement': '.1242'}, {'kpcNum': '58000', 'measurement': '.2295'}, {'kpcNum': '58001', 'measurement': '.1294'}, {'kpcNum': '58004', 'measurement': '.0001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7235', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.395'}, {'kpcNum': '58002', 'measurement': '5.6686'}, {'kpcNum': '58003', 'measurement': '.4393'}, {'kpcNum': '57999', 'measurement': '.1244'}, {'kpcNum': '58000', 'measurement': '.2295'}, {'kpcNum': '58001', 'measurement': '.1294'}, {'kpcNum': '58004', 'measurement': '.0004'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7248', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3950'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4393'}, {'kpcNum': '57999', 'measurement': '.1244'}, {'kpcNum': '58000', 'measurement': '.2289'}, {'kpcNum': '58001', 'measurement': '.1295'}, {'kpcNum': '58004', 'measurement': '.0001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7268', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3951'}, {'kpcNum': '58002', 'measurement': '5.6685'}, {'kpcNum': '58003', 'measurement': '.4391'}, {'kpcNum': '57999', 'measurement': '.1246'}, {'kpcNum': '58000', 'measurement': '.2294'}, {'kpcNum': '58001', 'measurement': '.1297'}, {'kpcNum': '58004', 'measurement': '.0001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7243', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3953'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4395'}, {'kpcNum': '57999', 'measurement': '.1245'}, {'kpcNum': '58000', 'measurement': '.2286'}, {'kpcNum': '58001', 'measurement': '.1296'}, {'kpcNum': '58004', 'measurement': '.0005'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7267', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3952'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4391'}, {'kpcNum': '57999', 'measurement': '.1243'}, {'kpcNum': '58000', 'measurement': '.2281'}, {'kpcNum': '58001', 'measurement': '.1295'}, {'kpcNum': '58004', 'measurement': '.0004'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7270', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3953'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4393'}, {'kpcNum': '57999', 'measurement': '.1242'}, {'kpcNum': '58000', 'measurement': '.2282'}, {'kpcNum': '58001', 'measurement': '.1291'}, {'kpcNum': '58004', 'measurement': '.0003'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7257', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3951'}, {'kpcNum': '58002', 'measurement': '5.6685'}, {'kpcNum': '58003', 'measurement': '.4394'}, {'kpcNum': '57999', 'measurement': '.1244'}, {'kpcNum': '58000', 'measurement': '.2289'}, {'kpcNum': '58001', 'measurement': '.1293'}, {'kpcNum': '58004', 'measurement': '.0001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7269', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3951'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4389'}, {'kpcNum': '57999', 'measurement': '.1243'}, {'kpcNum': '58000', 'measurement': '.2288'}, {'kpcNum': '58001', 'measurement': '.1295'}, {'kpcNum': '58004', 'measurement': '.0005'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7240', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3953'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4395'}, {'kpcNum': '57999', 'measurement': '.1248'}, {'kpcNum': '58000', 'measurement': '.2283'}, {'kpcNum': '58001', 'measurement': '.1293'}, {'kpcNum': '58004', 'measurement': '.0002'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7236', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3953'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4393'}, {'kpcNum': '57999', 'measurement': '.1244'}, {'kpcNum': '58000', 'measurement': '.2287'}, {'kpcNum': '58001', 'measurement': '.1296'}, {'kpcNum': '58004', 'measurement': '.0001'}]}, 
+        {'partNumber': '762396', 'serialNumber': 'MENCAJ7266', 'uploadDate': '01/29/2025', 'measurements': [{'kpcNum': '57998', 'measurement': '16.3952'}, {'kpcNum': '58002', 'measurement': '5.6684'}, {'kpcNum': '58003', 'measurement': '.4395'}, {'kpcNum': '57999', 'measurement': '.1248'}, {'kpcNum': '58000', 'measurement': '.2288'}, {'kpcNum': '58001', 'measurement': '.1296'}, {'kpcNum': '58004', 'measurement': '.0001'}]}]       
+    database.add_measurement(measurements)
 
-df = pd.read_excel('part_data.xlsx')
-
-
-for (partNumber, serialNumber, uploadDate), group in df.groupby(['partNumber', 'serialNumber','uploadDate']):
-    group['kpcNum'] = group['kpcNum'].astype(str).replace(r'\.0$', '', regex=True)
-    group['measurement'] = group['measurement'].astype(str)
-    
-    partNumberStr = str(partNumber)
-    if partNumberStr.isnumeric():
-        partNumber = str(int(partNumber))
-    else: 
-        partNumber = str(partNumber)
-    serialNumber = str(serialNumber)
-    formattedDate = uploadDate.strftime('%m/%d/%Y') if pd.notnull(uploadDate) else uploadDate
-    measurement_data = {
-        'partNumber': partNumber,
-        'serialNumber': serialNumber,
-        'uploadDate': formattedDate,
-        'measurements': group[['kpcNum', 'measurement']].to_dict('records')
-        
-    }
-    print(measurement_data)
-    measurements.insert_one(measurement_data)
-
-
-
+update_measurements()

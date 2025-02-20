@@ -66,11 +66,7 @@ def submit_new_part(new_part_data, callback=None):
     
 def delete_part(self, part_id):
     result = parts.delete_one({"partNumber": part_id})
-    if result.deleted_count > 0:
-        QMessageBox.information(self,"Success", "Part deleted successfully." )
-        self.refreshTreeView()
-    else: 
-        QMessageBox.warning(self, "Error", "Failed to delete selected part." )
+
         
 def check_for_part(part_number):
     count = parts.count_documents({"partNumber": part_number})
@@ -134,7 +130,7 @@ def update_ppap_by_id(partId, new_part_data, callback=None):
     
 def add_measurement(upload_data):   
     try:
-        result = measurements.insert_one(upload_data)
+        result = measurements.insert_many(upload_data)
         if result.acknowledged:
             print("Upload success")
         else: 
@@ -142,9 +138,18 @@ def add_measurement(upload_data):
     except Exception as e:
         print(e)
     
+def update_measurement(doc, seq_num):
+    result = measurements.update_one(
+    {"_id": doc["_id"]},
+    {"$set": {"seqNum": seq_num}}
+)    
+    print(result.matched_count)
+        
 def get_measurements_by_id(part_id):
-    data = measurements.find({"partNumber":part_id})
+    data = measurements.find({"partNumber":part_id}).sort("uploadDate", 1)
     return (list(data))
+
+    
 
 def delete_duplicate_measurements():
     parts = measurements.find()
@@ -168,10 +173,8 @@ def delete_measurement_by_id(self, partNumber, serialNumber, uploadDate, callbac
     try:
         result = measurements.delete_one({'partNumber': partNumber, 'serialNumber': serialNumber, 'uploadDate':uploadDate})
         if result.deleted_count > 0:
-            QMessageBox.information(self,"Success", "measurement deleted successfully." )
             return result.deleted_count
         else: 
-            QMessageBox.warning(self, "Error", "Failed to delete selected measurement." )
             callback(False)
     except Exception as e:
         print(e)

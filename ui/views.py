@@ -632,15 +632,25 @@ class uploadDataForm(QWidget):
         addPartButton.clicked.connect(lambda: functions.submitData(self))
         layout.addWidget(addPartButton, 7, 2, 1, 3)
         
+        loadDataButton = QPushButton('load Past Data')
+        loadDataButton.setStyleSheet("background-color: #3ADC73")
+        loadDataButton.clicked.connect(self.showLoadDataForm)
+        layout.addWidget(loadDataButton, 8, 2, 1, 3)
+        
+        excelUploadButton = QPushButton('Create Excel Upload')
+        excelUploadButton.setStyleSheet("background-color: #3ADC73")
+        excelUploadButton.clicked.connect(lambda: functions.loadExcel(self, partId))
+        layout.addWidget(excelUploadButton, 9, 2, 1, 3)
+        
         updateCpkButton = QPushButton('Calculate CPK')
         updateCpkButton.setStyleSheet("background-color: #3ADC73")
-        updateCpkButton.clicked.connect(lambda: functions.calculateCpk(self))
-        layout.addWidget(updateCpkButton, 8, 2, 1, 3)
+        updateCpkButton.clicked.connect(self.runCpkCalc)
+        layout.addWidget(updateCpkButton, 10, 2, 1, 3)
         
         cancelButton = QPushButton('Cancel')
         cancelButton.setStyleSheet("background-color: #D6575D")
         cancelButton.clicked.connect(self.close)
-        layout.addWidget(cancelButton, 9, 2, 1, 3)
+        layout.addWidget(cancelButton, 11, 2, 1, 3)
         
         self.dataTable = QTableWidget()
         self.dataTable.setColumnCount(5)
@@ -657,6 +667,16 @@ class uploadDataForm(QWidget):
             functions.createLotInputs(self, lot_size)
         else:
             functions.clearLotInputs(self)
+            
+    def showLoadDataForm(self):
+        self.loadDataForm = loadPastDataForm(self.partId, self)
+        self.loadDataForm.populateComboDates()
+        self.loadDataForm.show()
+        
+    def runCpkCalc(self):
+        partData = database.get_measurements_by_id(self.partId)
+        cpkValues = functions.calculateCpk(self, partData)
+        database.save_cpk_values(self.partId, cpkValues)
     
     def loadPartData(self, selectedPartData):
         self.partNumber.setText(selectedPartData['partNumber'])
@@ -666,9 +686,112 @@ class uploadDataForm(QWidget):
         self.dataTable.setRowCount(0)
         self.dataTable.setHorizontalHeaderLabels(['Feature Number', 'KPC Number', 'Blueprint Dimension', 'Op Number', 'Measurement'])
         
+        
     def closeWindow(self):
         self.close()
         
+class loadPastDataForm(QWidget):
+    def __init__(self, partId, parent=None):
+        super().__init__()
+        self.parent = parent
+        self.partId = partId
+        self.measurement_data = database.get_measurements_by_id(self.partId)
+        self.measurement_data.sort(key= lambda doc: datetime.strptime(doc["uploadDate"], "%m/%d/%Y"))
+        self.cpk_values = []
+        self.setWindowTitle("Select Date Range")
+        self.resize(600, 400)
+        self.spinner = SpinnerWidget(
+            parent=self,
+            roundness=100.0,
+            fade=61.98,
+            radius=25,
+            lines=65,
+            line_length=13,
+            line_width=20,
+            speed=0.68,
+            color= QColor(34, 130, 255),
+            spinner_text='Calculating CPK.\nThis may take a while...',
+        )
+        
+        layout = QGridLayout()
+        
+        self.cpkTable = QTableWidget()
+        self.cpkTable.setColumnCount(3)
+        self.cpkTable.setHorizontalHeaderLabels(["KPC #","Dimension", "CPK Value"])
+        for column in range(self.cpkTable.columnCount()):
+            self.cpkTable.horizontalHeader().setSectionResizeMode(column, QHeaderView.Stretch)
+        self.cpkTable.setVisible(False)
+        
+        featureLabel = QLabel('Date Range:')
+        self.startDateBox = QComboBox()
+        self.endDateBox = QComboBox()
+        submitButton = QPushButton('Load data for selected dates')
+        submitButton.setStyleSheet("background-color: #3ADC73")
+        submitButton.clicked.connect(self.submitSelectedDates)
+        calculateCpkButton = QPushButton('Calculate CPK for selected dates')
+        calculateCpkButton.setStyleSheet("background-color: #3ADC73")
+        calculateCpkButton.clicked.connect(self.calculateCpkForSelectedDates)
+        
+        layout.addWidget(self.cpkTable, 0, 0, 1, 2)
+        layout.addWidget(featureLabel, 1, 0)
+        layout.addWidget(self.startDateBox, 2, 0)
+        layout.addWidget(self.endDateBox, 2, 1)
+        layout.addWidget(submitButton, 3, 0)
+        layout.addWidget(calculateCpkButton, 3, 1)
+        
+        self.setLayout(layout)
+        
+    def populateComboDates(self):
+        for document in self.measurement_data:
+            self.startDateBox.addItem(document["uploadDate"])
+            self.endDateBox.addItem(document["uploadDate"])
+        
+        
+    def calculateCpkForSelectedDates(self):
+        filtered_data = self.filterDataByDate()
+        cpk_values = functions.calculateCpk(self, filtered_data)
+        self.cpk_values = cpk_values
+        
+        if self.cpk_values:
+            self.updateCpkTable()
+        
+    def updateCpkTable(self):
+        self.cpkTable.setRowCount(len(self.cpk_values))
+        self.cpkTable.setVisible(True)
+        for i, cpk_data in enumerate(self.cpk_values):
+            kpc = cpk_data.get("kpcNum")
+            tol = cpk_data.get("tol")
+            cpk = cpk_data.get("cpk")
+            self.cpkTable.setItem(i, 0, QTableWidgetItem(str(kpc)))
+            self.cpkTable.setItem(i, 1, QTableWidgetItem(str(tol)))
+            self.cpkTable.setItem(i, 2, QTableWidgetItem(str(cpk)))
+
+    def submitSelectedDates(self):
+        filtered_data = self.filterDataByDate()
+        functions.loadMeasurementData(self.parent, filtered_data)
+    def filterDataByDate(self):
+        start_date_str = self.startDateBox.currentText()
+        end_date_str = self.endDateBox.currentText()
+        
+        start_date = datetime.strptime(start_date_str, "%m/%d/%Y")
+        end_date = datetime.strptime(end_date_str, "%m/%d/%Y")
+        
+        if start_date and end_date:
+            if start_date > end_date:
+                QMessageBox.warning(self, "Invalid Range", "Start date must be earlier than or equal to end date.")
+                return
+            
+            filtered_data = [
+                doc for doc in self.measurement_data 
+                if start_date<= datetime.strptime(doc["uploadDate"], "%m/%d/%Y") <= end_date
+            ]
+            
+            filtered_data.sort(key= lambda doc: datetime.strptime(doc["uploadDate"], "%m/%d/%Y"))
+            
+            return filtered_data
+            
+            
+            
         
 ##View for previous part upload data
 class HistoricalDataView(QWidget):

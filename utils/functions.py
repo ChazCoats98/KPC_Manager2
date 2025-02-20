@@ -307,6 +307,28 @@ def clearLotInputs(self):
                 item.widget().deleteLater()
         self.serialNumberInputs = []
         self.featureTables = []
+        
+def loadMeasurementData(self, measurement_data):
+    createLotInputs(self, len(measurement_data))
+    
+    for i, measurements in enumerate(measurement_data):
+        if i >= len(self.featureTables):
+            break
+        
+        feature_table = self.featureTables[i]
+        measurement_map = {m['kpcNum']: m['measurement'] for m in measurements['measurements']}
+        self.serialNumberInputs[i].setText(measurements["serialNumber"])
+        
+        for row in range(feature_table.rowCount()):
+            kpc_num = feature_table.item(row, 1).text()
+            if kpc_num in measurement_map:
+                measurement_value = measurement_map[kpc_num]
+                feature_table.setItem(row, 4, QTableWidgetItem(measurement_value))
+        
+        
+def filterData(self, part_number):
+    measurement_data = database.get_measurements_by_id(part_number)
+    measurement_data.sort(key= lambda doc: datetime.strptime(doc["uploadDate"], "%m/%d/%Y"))
 
 #Create tables for data upload    
 def createLotInputs(self, lot_size):
@@ -455,14 +477,25 @@ def extractDataFromPdf(self, filePath):
 def submitData(self):
         part_number = self.partNumber.text()
         existing_part_data = database.get_part_by_id(part_number)
+        measurement_data = database.get_measurements_by_id(part_number)
         machine = self.machineComboBox.currentText()
         run_number = self.runNumberInput.text()
         lot_size = self.lotSizeComboBox.currentText()
-        target_row = 2
         template_path = './utils/Templates/Measurement_Import_template.xlsx'
         today = datetime.today()
         upload_date_str = today.strftime('%m/%d/%Y')
         upload_date_file_path = today.strftime('%m-%d-%Y')
+        new_file_path = f'./Results/{part_number}_data_upload_{upload_date_file_path}.xlsx'
+        due_date = today + timedelta(days=90)
+        due_date_str = due_date.strftime('%m/%d/%Y')
+        today = datetime.today()
+        upload_date_str = today.strftime('%m/%d/%Y')
+        part_number = self.partNumber.text()
+        machine = self.machineComboBox.currentText()
+        run_number = self.runNumberInput.text()
+        lot_size = self.lotSizeComboBox.currentText()
+        upload_date_file_path = today.strftime('%m-%d-%Y')
+        template_path = './utils/Templates/Measurement_Import_template.xlsx'
         new_file_path = f'./Results/{part_number}_data_upload_{upload_date_file_path}.xlsx'
         due_date = today + timedelta(days=90)
         due_date_str = due_date.strftime('%m/%d/%Y')
@@ -484,101 +517,159 @@ def submitData(self):
         
         shutil.copy(template_path,  new_file_path)
         
-        workbook = load_workbook(filename=new_file_path)
-        sheet = workbook.active
+        upload_data, updated_part_data = generateExcel(
+            self,
+            part_number=part_number,
+            serial_number_inputs=self.serialNumberInputs,
+            feature_tables=self.featureTables,
+            machine=machine,
+            run_number=run_number,
+            lot_size=lot_size,
+            upload_date_file_path=upload_date_file_path
+            )
         
-        try:
-            for serial_input, feature_table in zip(self.serialNumberInputs, self.featureTables):
-                serial_number = serial_input.text()
-                if database.check_serial_number(serial_number):
-                    QMessageBox.warning(self, "Duplicate Serial Number", f"Serial Number {serial_number} already in database")
-                    continue
-            
-                upload_data = {
-                    "partNumber": part_number,
-                    "serialNumber": serial_number,
-                    "uploadDate": upload_date_str,
-                    "measurements": []
-                }
-                
-                updated_part_data = {
-                        "uploadDate": upload_date_str,
-                        "dueDate": due_date_str,
-                        "features" : []
-                    }
-            
-                for row in range(feature_table.rowCount()):
-                    feature_number = feature_table.item(row, 0).text()
-                    kpc_number= feature_table.item(row, 1).text()
-                    op_number = feature_table.item(row, 3).text()
-                    measurement = feature_table.item(row, 4).text()
-            
-                    if part_number:
-                        sheet.cell(row=target_row, column=1).value = part_number
-                    if feature_number:
-                        sheet.cell(row=target_row, column=2).value = feature_number
-                    if machine:
-                        sheet.cell(row=target_row, column=3).value = machine
-                    if run_number:
-                        sheet.cell(row=target_row, column=4).value = run_number
-                    if lot_size:
-                        sheet.cell(row=target_row, column=5).value = lot_size
-                    if measurement:
-                        sheet.cell(row=target_row, column=6).value = measurement
-                    if serial_number:
-                        sheet.cell(row=target_row, column=8).value = serial_number
-                    target_row += 1
-            
-                    upload_data["measurements"].append({
-                        "kpcNum": kpc_number,
-                        "measurement": measurement
-                    })
-                    
-                    updated_part_data["features"].append({
-                        "opNum": op_number if op_number else ""
-                    })
-            
-            workbook.save(filename=new_file_path)
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {str(e)}")
         try: 
-            partNumber = self.partNumber.text()
-            basePath = f'//server/D/Quality Control/UPPAP Records/Process Cert + Data Collection/Data points/{partNumber}'
-            fileName, ok = QFileDialog.getSaveFileName(
-                self,
-                "Save Excel File",
-                basePath,
-                "Excel files (*.xlsx)")
+            database.add_measurement(upload_data)
             
+            def on_submit_success(is_success):
+                if is_success:
+                    self.dataSubmitted.emit()
+                    QMessageBox.information(self, "Success", "Data uploaded successfully.")
+                    clearLotInputs(self)
+            for part in updated_part_data:
+                database.update_part_by_id(self.partId, part, callback=on_submit_success)
+        
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
+            QMessageBox.critical(self, "Error", f"An error occurred while saving the file: {e}")
         
-        if not fileName:
-            QMessageBox.information(self, "Save Canceled", "The save operation was cancelled")
-            return
-        
-        if fileName:
-            if not fileName.endswith('.xlsx'):
-                fileName += '.xlsx'
-            try: 
-                shutil.move(new_file_path, fileName)
-                database.add_measurement(upload_data)
+        cpk_values = calculateCpk(self, measurement_data)
+        database.save_cpk_values(part_number, cpk_values)
             
-                def on_submit_success(is_success):
-                    if is_success:
-                        self.dataSubmitted.emit()
-                        QMessageBox.information(self, "Success", "Data uploaded successfully.")
-                        clearLotInputs(self)
-                        
-                database.update_part_by_id(self.partId, updated_part_data, callback=on_submit_success)
+            
+def generateExcel(self, part_number, serial_number_inputs, feature_tables, machine, run_number, lot_size, upload_date_file_path):
+    target_row = 2
+    template_path = './utils/Templates/Measurement_Import_template.xlsx'
+    new_file_path = f'./Results/{part_number}_data_upload_{upload_date_file_path}.xlsx'
+    today = datetime.today()
+    upload_date_str = today.strftime('%m/%d/%Y')
+    due_date = today + timedelta(days=90)
+    due_date_str = due_date.strftime('%m/%d/%Y')
+    upload_data_list = []
+    updated_part_data_list = []
+    
+    shutil.copy(template_path,  new_file_path)
+    workbook = load_workbook(filename=new_file_path)
+    sheet = workbook.active
         
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"An error occurred while saving the file: {e}")
+    try:
+        for serial_input, feature_table in zip(serial_number_inputs, feature_tables):
+            serial_number = serial_input.text()
+            if database.check_serial_number(serial_number):
+                duplicate_warning = QMessageBox(self)
+                duplicate_warning.setWindowTitle("Duplicate Serial Number")
+                duplicate_warning.setText(f"Serial Number {serial_number} already in database. Would you like to save the data anyways?")
+                duplicate_warning.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                duplicate_warning.setIcon(QMessageBox.Warning)
+                    
+                response = duplicate_warning.exec_()
+                if response == QMessageBox.No:
+                    break
+                else:
+                    continue
                 
-        
-        calculateCpk(self)
+            upload_data = {
+                "partNumber": part_number,
+                "serialNumber": serial_number,
+                "uploadDate": upload_date_str,
+                "measurements": []
+            }
+                
+            updated_part_data = {
+                    "uploadDate": upload_date_str,
+                    "dueDate": due_date_str,
+                    "features" : []
+            }
             
+            for row in range(feature_table.rowCount()):
+                feature_number = feature_table.item(row, 0).text()
+                kpc_number= feature_table.item(row, 1).text()
+                op_number = feature_table.item(row, 3).text()
+                measurement = feature_table.item(row, 4).text()
+            
+                if part_number:
+                    sheet.cell(row=target_row, column=1).value = part_number
+                if feature_number:
+                    sheet.cell(row=target_row, column=2).value = feature_number
+                if machine:
+                    sheet.cell(row=target_row, column=3).value = machine
+                if run_number:
+                    sheet.cell(row=target_row, column=4).value = run_number
+                if lot_size:
+                    sheet.cell(row=target_row, column=5).value = lot_size
+                if measurement:
+                    sheet.cell(row=target_row, column=6).value = measurement
+                if serial_number:
+                    sheet.cell(row=target_row, column=8).value = serial_number
+                target_row += 1
+                
+                upload_data["measurements"].append({
+                    "kpcNum": kpc_number,
+                    "measurement": measurement
+                })
+                
+                updated_part_data["features"].append({
+                    "opNum": op_number if op_number else "",
+                })
+                
+            upload_data_list.append(upload_data)
+            updated_part_data_list.append(updated_part_data)
+            
+        workbook.save(filename=new_file_path)
+    except Exception as e:
+        print(e)
+        QMessageBox.critical(self, "Error", f"An unexpected error occurred: {str(e)}")
+        
+    try: 
+        basePath = f'//server/D/Quality Control/UPPAP Records/Process Cert + Data Collection/Data points/{part_number}/762396_reupload.xlsx'
+        fileName, ok = QFileDialog.getSaveFileName(
+            self,
+            "Save Excel File",
+            basePath,
+            "Excel files (*.xlsx)"
+        )
+            
+    except Exception as e:
+        print(e)
+        QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
+        
+    if not fileName:
+        QMessageBox.information(self, "Save Canceled", "The save operation was cancelled")
+        return
+        
+    if fileName:
+        if not fileName.endswith('.xlsx'):
+            fileName += '.xlsx'
+        try: 
+            shutil.move(new_file_path, fileName)
+            return upload_data_list, updated_part_data_list
+        
+        except Exception as e:
+            print(e)
+            QMessageBox.critical(self, "Error", f"An error occurred while saving the file: {e}")
+            return None, None
+            
+def loadExcel(self, part_number):
+    today = datetime.today()
+    upload_date_file_path = today.strftime('%m-%d-%Y')
+    upload_date_str = today.strftime('%m/%d/%Y')
+    part_number = self.partNumber.text()
+    machine = self.machineComboBox.currentText()
+    run_number = self.runNumberInput.text()
+    lot_size = len(self.serialNumberInputs)
+    print(lot_size)
+    serial_number_inputs = self.serialNumberInputs
+    
+    generateExcel(self, part_number=part_number,serial_number_inputs=serial_number_inputs,feature_tables=self.featureTables, machine=machine, run_number=run_number, lot_size=lot_size, upload_date_file_path=upload_date_file_path )
 
 
 def loginFailed():
@@ -606,49 +697,70 @@ def passMismatch():
     dlg.exec()
     
 #calculate or recalculate CPK on data upload 
-def calculateCpk(self):
+def calculateCpk(self, measurement_data):
         self.spinner.start()
         QCoreApplication.processEvents()
         
         self.thread = QThread()
-        self.worker = Worker(self.partId, self)
+        self.worker = Worker(self.partId, self, measurement_data)
         self.worker.moveToThread(self.thread)
         
+        cpk_values = []
+        
+        def store_result(result):
+            nonlocal cpk_values
+            cpk_values = result
+            
+            
         self.thread.started.connect(self.worker.run)
         self.worker.init_dialog.connect(info_dialog_init)
         self.worker.finished.connect(self.thread.quit)
         self.worker.finished.connect(self.worker.deleteLater)
         self.worker.finished.connect(self.spinner.stop)
-        self.thread.finished.connect(self.thread.deleteLater)    
+        self.worker.result_ready.connect(store_result)
+        self.thread.finished.connect(self.thread.deleteLater)   
+        event_loop = QEventLoop()
+        self.worker.result_ready.connect(event_loop.quit)
         self.thread.start()
+        
+        event_loop.exec_()
+        
+        return cpk_values
+    
+
 
 #Worker to task out long-running cpk calculation to prevent application freeze
 class Worker(QObject):
     finished = pyqtSignal()
     init_dialog = pyqtSignal(QWidget, str, str)
+    result_ready = pyqtSignal(list)
     
-    def __init__(self, partId, parent = None):
+    def __init__(self, partId, parent = None, measurement_data = None):
         super().__init__()
         self.partId = partId
         self.parent = parent
+        self.measurement_data = measurement_data
         
     def run(self): 
-        self.calculateAndUpdateCpk()
-        self.finished.emit()
+        formatted_cpk_values = self.calculateAndUpdateCpk()
+        if formatted_cpk_values:
+            self.result_ready.emit(formatted_cpk_values)
+            self.finished.emit()
         
     def calculateAndUpdateCpk(self):
         print("Worker: Starting calculation")
         partId = self.partId
         part_data = database.get_part_by_id(partId)
+        print(part_data)
         if part_data:
             tolerances = {feature['kpcNum']: self.parse_tolerance(feature.get('tol', '0-0')) for feature in part_data.get('features', []) if feature['kpcNum']}
+            
     
-        measurement_data = database.get_measurements_by_id(partId)
         
         measurements_by_kpc = {kpc: [] for kpc in tolerances.keys()}
         
-        if measurement_data:
-            for entry in measurement_data:
+        if self.measurement_data:
+            for entry in self.measurement_data:
                 for measurement in entry.get('measurements', []):
                     kpcNum = measurement.get('kpcNum')
                     if kpcNum and kpcNum in measurements_by_kpc:
@@ -667,16 +779,23 @@ class Worker(QObject):
             print('calculating cpk')
             for kpc, data in dist_data.items():
                 if data['dist'] == 'Normal':
-                    usl, lsl = tolerances[kpc]
-                    if usl is not None and lsl is not None:
-                        if usl < lsl:
-                            usl, lsl = lsl, usl
+                    lsl, usl = tolerances[kpc]
                     measurement = measurements_by_kpc[kpc]
                     sigma = np.std(measurement, ddof=1)
                     mean = np.mean(measurement)
                 
-                    cpu = (usl - mean) / (3 * sigma)
-                    cpl = (mean - lsl) / (3 * sigma)
+                    if usl is None and lsl is not None:  
+                        cpl = (mean - lsl) / (3 * sigma)
+                        cpk = cpl  
+                    elif lsl is None and usl is not None: 
+                        cpu = (usl - mean) / (3 * sigma)
+                        cpk = cpu  
+                    elif usl is not None and lsl is not None:  
+                        if usl < lsl:
+                            usl, lsl = lsl, usl
+                        cpu = (usl - mean) / (3 * sigma)
+                        cpl = (mean - lsl) / (3 * sigma)
+                        cpk = min(cpl, cpu)
                 
                     cpk = min(cpl, cpu)
                     print(f'cpk: {cpk}')
@@ -689,11 +808,17 @@ class Worker(QObject):
                 print(cpk_values)
             print("Worker: Calculation finished")
             if cpk_values:
-                formatted_cpk_values = {kpc: round(abs(cpk if cpk is not None else 0), 3) for kpc, cpk in cpk_values.items()}
-                database.save_cpk_values(partId, formatted_cpk_values)
-                self.parent.dataSubmitted.emit()
+                tol_values = {feature['kpcNum']: feature.get('tol', 'N/A') for feature in part_data.get('features', []) if 'kpcNum' in feature}
+                formatted_cpk_values = []
+                for kpc, cpk in cpk_values.items():
+                    formatted_cpk_values.append({
+                        "kpcNum":kpc,
+                        "cpk": round(abs(cpk if cpk is not None else 0), 3),
+                        "tol": tol_values.get(kpc, 'N/A') 
+                })
+                return formatted_cpk_values
         else:
-            return
+            return {}
     
     def test_normalRJ(self, measurements, tolerances):
         normality_results = {}
@@ -708,9 +833,13 @@ class Worker(QObject):
         return normality_results
 
     def calculate_dist(self, measurements, tolerances):
+        print("measurements: ")
+        print(measurements)
+        print("Tolerances: ")
+        print(tolerances)
         try:
             mtb = win32com.client.Dispatch("Mtb.Application.1")
-            mtb.UserInterface.Visible = True
+            mtb.UserInterface.Visible = False
             project = mtb.ActiveProject
             worksheet = project.ActiveWorksheet
             columns = worksheet.Columns
@@ -723,51 +852,56 @@ class Worker(QObject):
                 if usl is not None and lsl is not None:
                     if usl < lsl:
                         usl, lsl = lsl, usl
+                elif usl is None and lsl is not None:
+                    usl = max(data) 
+                elif lsl is None and usl is not None:
+                    lsl = min(data) 
+                else:
+                    continue
                 
-                    column = columns.Add(None, None, 1)
-                    column.SetData(data)
+                column = columns.Add(None, None, 1)
+                column.SetData(data)
             
-                    command = f"DCapa C{d} 1; All; BoxCox; Johnson 0.10; RDescriptive; RFitTests; REstimate."
-                    project.ExecuteCommand(command)
+                command = f"DCapa C{d} 1; All; BoxCox; Johnson 0.10; RDescriptive; RFitTests; REstimate."
+                project.ExecuteCommand(command)
     
-                    time.sleep(2)
+                time.sleep(2)
 
-                    commands = project.Commands
-                    lastCommand = commands.Item(commands.Count)
-                    outputs = lastCommand.Outputs
+                commands = project.Commands
+                lastCommand = commands.Item(commands.Count)
+                outputs = lastCommand.Outputs
 
-                    results = []
+                results = []
 
-                    for i in range(1, outputs.Count +1):
-                        output = outputs.Item(i)
-                        results.append(output.Text)
+                for i in range(1, outputs.Count +1):
+                    output = outputs.Item(i)
+                    results.append(output.Text)
     
-                    formattedResults = "\n".join(results)
+                formattedResults = "\n".join(results)
             
-                    parsed_gof = self.parse_goodness_of_fit(formattedResults)
-                    parsed_params = self.parse_distribution_params(formattedResults)
+                parsed_gof = self.parse_goodness_of_fit(formattedResults)
+                parsed_params = self.parse_distribution_params(formattedResults)
             
-                    best_fit = self.determine_best_fit(parsed_gof)
-                    best_fit_params = parsed_params[best_fit]
+                best_fit = self.determine_best_fit(parsed_gof)
+                best_fit_params = parsed_params[best_fit]
             
-                    percentiles = [.00135, .5, .99865]
-                    perc_dict = {}
-                    for percentile in percentiles:
-                        p_column = columns.Add(None, d, 1)
-                        p_column.SetData(percentile)
-                        percent = self.get_perc_format(d, best_fit, best_fit_params)
-                        project.ExecuteCommand(percent)
-                        o_column = columns.Item(d+2).GetData(1)
-                        perc_dict[f'{(percentile * 100):.3f}th Percentile'] = o_column
-                        d = d + 2
-                    p_res[kpc] = perc_dict
-                    d = d + 1
+                percentiles = [.00135, .5, .99865]
+                perc_dict = {}
+                for percentile in percentiles:
+                    p_column = columns.Add(None, d, 1)
+                    p_column.SetData(percentile)
+                    percent = self.get_perc_format(d, best_fit, best_fit_params)
+                    project.ExecuteCommand(percent)
+                    o_column = columns.Item(d+2).GetData(1)
+                    perc_dict[f'{(percentile * 100):.3f}th Percentile'] = o_column
+                    d = d + 2
+                p_res[kpc] = perc_dict
+                d = d + 1
     
-                    dist_data[kpc] = {
-                        'dist': best_fit,
-                        'params': best_fit_params
-                    }
-            print(p_res)
+                dist_data[kpc] = {
+                    'dist': best_fit,
+                    'params': best_fit_params
+                }
             temp_file = os.path.join(tempfile.gettempdir(), 'temp_project.mpjx')
             project.SaveAs(temp_file)
 
@@ -778,26 +912,38 @@ class Worker(QObject):
             return None, None
 
     def parse_goodness_of_fit(self, output):
-        print(output)
         if output:
-            gof_start = re.search(r'Distribution\s+AD\s+P\s+LRT P', output).end()
-            gof_end = re.search(r"ML Estimates of Distribution Parameters", output).start()
+            gof_start_match = re.search(r'Distribution\s+AD\s+P(?:\s+LRT P)?', output)
+            if not gof_start_match:
+                print("Goodness of Fit section not found.")
+                return {}
+            gof_start = gof_start_match.end()
+            
+            gof_end_match = re.search(r"ML Estimates of Distribution Parameters", output)
+            if not gof_end_match:
+                print("ML Estimates section not found.")
+                return {}
+            
+            gof_end = gof_end_match.start()
             gof_table = output[gof_start:gof_end].strip()
             parsed_data = {}
+            
             for line in gof_table.strip().split("\n"):
                 parts = re.split(r'\s{2,}', line)
+                print(parts)
         
                 distribution = parts[0].strip()
                 AD, P, LRT_P = None, None, None
-                if distribution.startswith('3-Parameter Lognormal') or distribution.startswith('3-Parameter Gamma') or distribution.startswith('3-Parameter Loglogistic'):
-                    AD, LRT_P = float(parts[-3]), parts[-1].strip()
-                    LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
-                elif distribution.startswith('2-Parameter Exponential') or distribution.startswith('3-Parameter Weibull'):
-                    AD, P, LRT_P = float(parts[-3]), parts[-2], parts[-1].strip()
-                    LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
-                else:
-                    AD, P = float(parts[-2]), parts[-1].strip()
+                
+                if len(parts) == 2:  
+                    AD, P = float(parts[1]), None
+                elif len(parts) == 3:
+                    AD, P = float(parts[1]), parts[2].strip()
                     P = float(P) if P.replace('.', '', 1).isdigit() else P
+                elif len(parts) == 4:
+                    AD, P, LRT_P = float(parts[1]), parts[2].strip(), parts[3].strip()
+                    P = float(P) if P.replace('.', '', 1).isdigit() else P
+                    LRT_P = float(LRT_P) if LRT_P.replace('.', '', 1).isdigit() else LRT_P
             
                 if isinstance(P, str) and (P.startswith('>') or P.startswith('<')):
                     P = float(P[1:])
@@ -897,15 +1043,23 @@ class Worker(QObject):
             ppu = (usl - med) / (high - med)
             ppl = None
             
-        if ppu > ppl:
-            calc_type = 'PPU'
-            return calc_type, ppu
-        else: 
+        if ppu is not None and ppl is not None:
+            if ppu > ppl:
+                calc_type = 'PPU'
+                return calc_type, ppu
+            else: 
+                calc_type = 'PPL'
+                return calc_type, ppl
+        elif ppu is None:
             calc_type = 'PPL'
             return calc_type, ppl
-            
+        else:
+            calc_type = 'PPU'
+            return calc_type, ppu
+        
     def parse_tolerance(self, tolerance):
         range_pattern = re.compile(r'(?<!\S)(\d*\.\d+)\s*-\s*(\d*\.\d+)(?!\S)')
+        min_only_pattern = re.compile(r'(?<!\S)(\d*\.\d+)\s+(?:Min|Minimum)\s+\w+', re.IGNORECASE)
         specific_tolerance_pattern = re.compile(r'([A-Za-z ]+)\s+(\d*\.\d+)')
     
         range_match = range_pattern.search(tolerance)
@@ -913,6 +1067,11 @@ class Worker(QObject):
         if range_match:
             max_val, min_val = map(float, range_match.groups())
             return ( max_val, min_val)
+        
+        min_only_match = min_only_pattern.search(tolerance)
+        if min_only_match:
+            min_val = float(min_only_match.group(1))
+            return (min_val, None)
     
         specific_tolerance_match = specific_tolerance_pattern.search(tolerance)
         if specific_tolerance_match:
